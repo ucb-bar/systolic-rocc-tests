@@ -1,8 +1,3 @@
-Mesh row 
-
-    val in_a = Input(Vec(meshRows, Vec(tileColumns, Vec(tileRows, inputType))))
-
-
 // See LICENSE for license details.
 
 #include <stdint.h>
