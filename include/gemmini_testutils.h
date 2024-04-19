@@ -279,6 +279,31 @@ static uint64_t read_cycles() {
     // const uint32_t * mtime = (uint32_t *)(33554432 + 0xbffc);
     // return *mtime;
 }
+static void printVector(elem_t m[DIM]) {
+  for (size_t i = 0; i < DIM; ++i) {
+#ifndef ELEM_T_IS_FLOAT
+      printf("%d ", m[i]);
+#else
+      printf("%x ", elem_t_to_elem_t_bits(m[i]));
+#endif
+  }
+  printf("\n");
+}
+
+static int is_equal_vector(elem_t x[DIM], elem_t y[DIM]) {
+  for (size_t i = 0; i < DIM; ++i) {
+#ifndef ELEM_T_IS_FLOAT
+    if (x[i] != y[i])
+#else
+    bool isnanx = elem_t_isnan(x[i]);
+    bool isnany = elem_t_isnan(y[i]);
+
+    if (x[i] != y[i] && !(isnanx && isnany))
+#endif
+        return 0;
+  }
+  return 1;
+}
 
 #undef abs
 
