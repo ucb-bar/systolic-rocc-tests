@@ -14,7 +14,7 @@ tests = \
 	large_padded_matmul \
 	very_large_matmul \
 	cifar_quant\
-	fix_matmuls\
+	simple_matmuls\
 	mvin_mvout \
 	mvin_mvout_zeros \
 	mvin_mvout_stride \
