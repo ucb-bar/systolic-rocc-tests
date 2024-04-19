@@ -12,7 +12,7 @@
 #include "include/gemmini.h"
 #include "include/gemmini_testutils.h"
 
-#define N (2)
+#define N (1)
 
 void operands(int c, int * a, int * b, int * d) {
   *d = c % N;
@@ -79,8 +79,12 @@ int main() {
   for (size_t n = 0; n < N; ++n) {
     for (size_t i = 0; i < DIM; ++i) {
       for (size_t j = 0; j < DIM; ++j) {
-        A[n][i][j] = n + i;
-        B[n][i][j] = n + j;
+        // A[n][i][j] = n + i;
+        // B[n][i][j] = n + j;
+        // A[n][i][j] = i == j;
+        A[n][i][j] = i*DIM + j;
+
+        B[n][i][j] = i == j;
       }
     }
   }
@@ -125,6 +129,13 @@ int main() {
       C_addrs[c] = C_addrs[last_c] | (1 << (ADDR_LEN-2));
   }
 
+  printf("Original Values:\n");
+  printf("A matrix\n");
+  printMatrix(A[0]);
+  printf("B matrix\n");
+  printMatrix(B[0]);
+
+
   // printf("Moving in\n");
   for (size_t n = 0; n < N; ++n)
     gemmini_mvin(A[n], A_addr + n*DIM);
@@ -161,9 +172,9 @@ int main() {
   // printf("Checking\n");
   for (int n = 0; n < N*N*N; ++n) {
     if (!no_output[n] && !is_equal(C[n], gold[n])) {
-      printf("A matrix");
+      printf("A matrix\n");
       printMatrix(A[n]);
-      printf("B matrix");
+      printf("B matrix\n");
       printMatrix(B[n]);
       printf("Actual (matrix %d):\n", n);
       printMatrix(C[n]);

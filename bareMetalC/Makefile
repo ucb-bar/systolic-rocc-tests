@@ -70,6 +70,8 @@ tests = \
 	gemmini_counter \
 	template \
 	gemv_identity\
+
+	
 tests_baremetal = $(tests:=-baremetal)
 
 ifeq ($(findstring spike,$(RUNNER)),spike)
