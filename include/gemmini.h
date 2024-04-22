@@ -283,6 +283,15 @@ static acc_scale_t_bits acc_scale_t_to_acc_scale_t_bits(acc_scale_t x) {
 
 #define gemmini_config_norm(q_const, q_const_type, set_stats_id_only, act_msb, stat_id, igelu_qb, igelu_qc) \
     ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, (((uint64_t) ((uint32_t) q_const)) << 32) | ((q_const_type & 1) << 18) | ((set_stats_id_only & 1) << 17) | ((act_msb & 1) << 16) | ((uint64_t)stat_id << 8) | CONFIG_BERT, ((uint64_t)((uint32_t)(igelu_qc)) << 32) | ((uint64_t)((uint32_t)(igelu_qb))), k_CONFIG)
+//preload duplicated the B ()
+//TODO: gemmini_extended_compute_gemv_preloaded
+//execute rs1 bit 48
+// compute_gemv
+#define gemmini_extended_compute_gemv_preloaded(A, BD, A_cols, A_rows, BD_cols, BD_rows) \
+  ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, (1 << (ADDR_LEN + 17)) | ((uint64_t)(A_rows) << (ADDR_LEN + 16)) | ((uint64_t)(A_cols) << ADDR_LEN) | (uint64_t)(A), ((uint64_t)(BD_rows) << (ADDR_LEN + 16)) | ((uint64_t)(BD_cols) << ADDR_LEN) | (uint64_t)(BD), k_COMPUTE_PRELOADED)
+
+#define gemmini_extended_compute_gemv_accumulated(A, BD, A_cols, A_rows, BD_cols, BD_rows) \
+  ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, (1 << (ADDR_LEN + 17)) | ((uint64_t)(A_rows) << (ADDR_LEN + 16)) | ((uint64_t)(A_cols) << ADDR_LEN) | (uint64_t)(A), ((uint64_t)(BD_rows) << (ADDR_LEN + 16)) | ((uint64_t)(BD_cols) << ADDR_LEN) | (uint64_t)(BD), k_COMPUTE_ACCUMULATE)
 
 // flush
 #define gemmini_flush(skip) \
@@ -806,11 +815,13 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
         const size_t B_rows = DIM - (k == K - 1 ? pad_K : 0);
         const size_t C_cols = DIM;
         const size_t C_rows = DIM - (i == I - 1 ? pad_I : 0);
+        //no need to change for the spike test (preload inside of compute)
+        // need a flag for preload 
         gemmini_extended_preload(pre_sp_addr, out_sp_addr, B_cols, B_rows, C_cols, C_rows);
         if (i == 0) { // First iteration
-          gemmini_extended_compute_preloaded(A_sp_addr, GARBAGE_ADDR, A_cols, A_rows, DIM, DIM);
+          gemmini_extended_compute_gemv_preloaded(A_sp_addr, GARBAGE_ADDR, A_cols, A_rows, DIM, DIM);
         } else { // All other iterations
-          gemmini_extended_compute_accumulated(A_sp_addr, GARBAGE_ADDR, A_cols, A_rows, DIM, DIM);
+          gemmini_extended_compute_gemv_accumulated(A_sp_addr, GARBAGE_ADDR, A_cols, A_rows, DIM, DIM);
         }
       }
       //last iter

@@ -94,9 +94,9 @@ gemmini_extended3_config_ld(1 * sizeof(elem_t), B_scale_factor, false, 1)
   }
 
   printf("Input and output matrices are identical, as expected\n");
-  printf("\"In\" matrix:\n");
+  printf("\"B\" matrix:\n");
   printVector(B);
-  printf("\"Out\" matrix:\n");
+  printf("\"C\" matrix:\n");
   printVector(C);
   exit(0);
 }
