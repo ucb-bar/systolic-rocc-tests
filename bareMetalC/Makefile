@@ -70,7 +70,7 @@ tests = \
 	gemmini_counter \
 	template \
 	gemv_identity\
-	gemv_identity_less_than_DIM\
+	gemv_identity_sp_tiled_matmul_ws\
 
 	
 tests_baremetal = $(tests:=-baremetal)
