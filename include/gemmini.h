@@ -499,8 +499,8 @@ static void sp_tiled_matmul_os(const elem_t * A, const elem_t * B, const void * 
 }
 
 
-static void sp_tiled_matmul_ws(const elem_t * A, const elem_t * B,
-        const void * D, void * C,
+static void sp_tiled_matmul_ws(const elem_t * A, const elem_t * B, 
+        const void * D,  void * C,
         scale_t A_scale_factor, scale_t B_scale_factor, scale_acc_t D_scale_factor,
         size_t I, size_t J, size_t K, size_t pad_I, size_t pad_J, size_t pad_K,
         size_t A_row_stride, size_t B_row_stride, size_t D_row_stride, size_t C_row_stride,
@@ -509,7 +509,6 @@ static void sp_tiled_matmul_ws(const elem_t * A, const elem_t * B,
         bool no_bias, bool repeating_bias,
         int act,
         int a_spad_id, int b_spad_id) {
-/*
   const uint32_t A_sp_addr_start = 0;
   const uint32_t B_sp_addr_start = BANK_NUM * BANK_ROWS - K * J * DIM;
   const uint32_t D_sp_addr_start = 1 << (ADDR_LEN-1);
@@ -678,15 +677,162 @@ static void sp_tiled_matmul_ws(const elem_t * A, const elem_t * B,
       }
     }
   }
-*/
-
-  // Combined loop
-  gemmini_loop_ws(I, J, K, pad_I, pad_J, pad_K, A, B, no_bias ? NULL : D, C,
-    A_row_stride, B_row_stride, repeating_bias ? 0 : D_row_stride, C_row_stride,
-    a_transpose, b_transpose,
-    full_C, low_D, !no_bias || D == NULL,
-    act, a_spad_id, b_spad_id, false);
 }
+
+//   // Combined loop
+//   gemmini_loop_ws(I, J, K, pad_I, pad_J, pad_K, A, B, no_bias ? NULL : D, C,
+//     A_row_stride, B_row_stride, repeating_bias ? 0 : D_row_stride, C_row_stride,
+//     a_transpose, b_transpose,
+//     full_C, low_D, !no_bias || D == NULL,
+//     act, a_spad_id, b_spad_id, false);
+// }
+
+//movinA movinB preload  compute
+//mvout to one address multi times and accomulation, 
+//treat A_blocks, B_blocks, C_blocks as 1 
+//treat B_row_stride as 1
+static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
+        scale_t A_scale_factor, scale_t B_scale_factor,
+        size_t I, size_t J, size_t K, size_t pad_I,size_t pad_J, size_t pad_K,
+        // size_t I, size_t J, size_t K, size_t pad_I, size_t pad_J, size_t pad_K,
+        size_t A_row_stride, size_t B_row_stride,size_t C_row_stride,
+        bool a_transpose,
+        bool full_C) {
+        // bool full_C,
+        // bool no_bias, bool repeating_bias,
+        // int act,
+        // int a_spad_id, int b_spad_id
+// DIM strided movins forn A, one movin B
+  const uint32_t A_sp_addr_start = 0;
+  const uint32_t B_sp_addr_start = BANK_NUM * BANK_ROWS - K * DIM;
+  // const uint32_t D_sp_addr_start = 1 << (ADDR_LEN-1);
+  const uint32_t C_sp_addr_start = 3 << (ADDR_LEN-2) | (full_C << (ADDR_LEN-3));
+  const int A_blocks = a_transpose ? (I <= MAX_BLOCK_LEN ? I : MAX_BLOCK_LEN) : (K <= MAX_BLOCK_LEN ? K : MAX_BLOCK_LEN);
+  const int B_blocks = K <= MAX_BLOCK_LEN ? K : MAX_BLOCK_LEN;
+  // const int D_blocks = low_D ? (J <= MAX_BLOCK_LEN ? J : MAX_BLOCK_LEN) : (J <= MAX_BLOCK_LEN_ACC ? J : MAX_BLOCK_LEN_ACC);
+  const int C_blocks = full_C ? 1 : (J <= MAX_BLOCK_LEN ? J : MAX_BLOCK_LEN);
+  // const size_t sizeof_D = low_D ? sizeof(elem_t) : sizeof(acc_t);
+  const size_t sizeof_C = full_C ? sizeof(acc_t) : sizeof(elem_t);
+  // // Move-in D
+  // if (D != NULL && !no_bias) {
+  //   for (size_t i = 0; i < I; i++) {
+  //     const size_t rows = DIM - (i == I-1 ? pad_I : 0);
+  //     for (size_t j = 0; j < J; j += D_blocks) {
+  //       const size_t bias_row = repeating_bias ? 0 : i;
+  //       const void * const D_dram_addr = (int8_t *)D + (bias_row * D_row_stride + j)*DIM*sizeof_D;
+  //       const uint32_t D_sp_addr_acc = D_sp_addr_start + (i*J + j)*DIM;
+  //       size_t blocks = j + D_blocks <= J ? D_blocks : J-j;
+  //       const size_t cols = blocks * DIM - (j + blocks >= J ? pad_J : 0);
+  //       gemmini_extended_mvin3(D_dram_addr, D_sp_addr_acc, cols, rows);
+  //     }
+  //   }
+  // }
+  // Mvin 
+  // add outer loop for 
+  for (size_t b=0; b < DIM; b++) {
+    for (size_t k = 0; k < K; k++) {
+      // for (size_t j = 0; j < J; j++) {
+      for (size_t i = 0; i < I; i++) {
+        //load to SPAD
+        const uint32_t A_sp_addr = a_transpose ? (A_sp_addr_start + b* BANK_ROWS + (k*I + i)) : (A_sp_addr_start  + b * BANK_ROWS + (i*K + k));
+        const uint32_t B_sp_addr = B_sp_addr_start + k*DIM;
+        // const uint32_t B_sp_addr = b_transpose ? (B_sp_addr_start + (j*K + k)*DIM) : (B_sp_addr_start + (k*J + j)*DIM);
+        const uint32_t C_sp_addr = C_sp_addr_start + i*DIM;
+        // const uint32_t C_sp_addr = C_sp_addr_start + (i*J + j)*DIM;
+        // Mvin A
+        if (a_transpose) {
+          if (i % A_blocks == 0) {
+            const elem_t * const A_dram_addr = A + (k*b*A_row_stride*DIM + i)*DIM;
+            const size_t blocks = 1;
+            // const size_t blocks = i + A_blocks <= I ? A_blocks : I-i;
+            //max_block 64/DIM 
+            const size_t cols = DIM;
+            const size_t rows = DIM;
+            gemmini_extended_mvin(A_dram_addr, A_sp_addr, cols, rows);
+          }
+        } else {
+          if (k % A_blocks == 0) {
+            const elem_t * const A_dram_addr = A + (i*b*A_row_stride*DIM + k)*DIM;
+            const size_t blocks = 1;
+            // const size_t blocks = k + A_blocks <= K ? A_blocks : K-k;
+            const size_t cols = DIM;
+            const size_t rows = DIM;
+            gemmini_extended_mvin(A_dram_addr, A_sp_addr, cols, rows);
+          }
+        }
+        // Mvin B
+        // if (b_transpose) {
+        //   if (i == 0 && k % B_blocks == 0) {
+        //     const elem_t * const B_dram_addr = B + (j*B_row_stride + k)*DIM;
+        //     const size_t blocks = k + B_blocks <= K ? B_blocks : K-k;
+        //     const size_t cols = blocks * DIM - (k + blocks >= K ? pad_K : 0);
+        //     const size_t rows = DIM - (j == J-1 ? pad_J : 0);
+        //     gemmini_extended_mvin2(B_dram_addr, B_sp_addr, cols, rows);
+        //   }
+      // } else {
+        if (i == 0) {
+          const elem_t * const B_dram_addr = B + (k*B_row_stride)*DIM;
+          const size_t blocks = B_blocks;
+          // const size_t blocks = j + B_blocks <= J ? B_blocks : J-j;
+          const size_t cols = 1;
+          //hardcoded to 1, need to optimize it to store B efficiently
+          const size_t rows = DIM;
+          gemmini_extended_mvin2(B_dram_addr, B_sp_addr, cols, rows);
+        }
+      }
+    }
+  }
+  // Compute
+  gemmini_fence();
+  for (size_t k = 0; k < K; k++) {
+    // for (size_t j = 0; j < J; j++) {
+    for (size_t i = 0; i < I; i++) {
+      {
+        const uint32_t A_sp_addr = a_transpose ? (A_sp_addr_start + (k*I + i)*DIM) : (A_sp_addr_start + (i*K + k)*DIM);
+        const uint32_t B_sp_addr = B_sp_addr_start + k*DIM;
+        const uint32_t C_sp_addr = C_sp_addr_start + i;
+        uint32_t pre_sp_addr = i == 0 ? B_sp_addr : GARBAGE_ADDR;
+        uint32_t out_sp_addr = C_sp_addr;
+        // If we're not using a bias, then we want to overwrite what's in the
+        // accumulator, rather than writing over it
+        // int no_bias_new_matrix = no_bias && D != NULL && k == 0;
+        // if (no_bias_new_matrix) {
+        //   out_sp_addr &= ~(1 << (ADDR_LEN-2));
+        // }
+        //A_cols = DIM unless it's the last block that is DIM - pad_K
+        const size_t A_cols = DIM - (k == K - 1 ? pad_K : 0);
+        const size_t A_rows = DIM - (i == I - 1 ? pad_I : 0);
+        const size_t B_cols = DIM;
+        const size_t B_rows = DIM - (k == K - 1 ? pad_K : 0);
+        const size_t C_cols = DIM;
+        const size_t C_rows = DIM - (i == I - 1 ? pad_I : 0);
+        gemmini_extended_preload(pre_sp_addr, out_sp_addr, B_cols, B_rows, C_cols, C_rows);
+        if (i == 0) { // First iteration
+          gemmini_extended_compute_preloaded(A_sp_addr, GARBAGE_ADDR, A_cols, A_rows, DIM, DIM);
+        } else { // All other iterations
+          gemmini_extended_compute_accumulated(A_sp_addr, GARBAGE_ADDR, A_cols, A_rows, DIM, DIM);
+        }
+      }
+      //last iter
+      if (C != NULL && k == K-1) {
+        // Move-out C (if not normalizing)
+        // if (((act != LAYERNORM) && (act != SOFTMAX)) && (j == J-1 || j % C_blocks == C_blocks-1)) {
+        // if ((j == J-1 || j % C_blocks == C_blocks-1)) {
+          // const size_t rounded_j = (j / C_blocks) * C_blocks;
+        const uint32_t C_sp_addr = C_sp_addr_start + i*DIM;
+        // void * const C_dram_addr = (int8_t*)C + (i*C_row_stride + rounded_j)*DIM*sizeof_C;
+        void * const C_dram_addr = (int8_t*)C + (i*DIM*sizeof_C);
+        //mvout DIm ele instead of DIM^2
+        const size_t blocks = 1;
+        const size_t cols = DIM;
+        const size_t rows = 1;
+        //each time move out DIM cols
+        gemmini_extended_mvout(C_dram_addr, C_sp_addr, cols, rows);
+        }
+      }
+    }
+  }
+
 
 
 static void tiled_matmul_outer(size_t dim_I, size_t dim_J, size_t dim_K,
@@ -702,6 +848,7 @@ static void tiled_matmul_outer(size_t dim_I, size_t dim_J, size_t dim_K,
         uint8_t weightA,
         int dataflow) {
 
+// The above code is performing calculations to determine the padded dimensions of a systolic array based on the input dimensions `dim_I`, `dim_J`, and `dim_K`. It is also calculating the number of tiles needed in each dimension based on tiling factors `tile_I`, `tile_J`, and `tile_K`.
   const size_t dim_I_padded = (dim_I / DIM + (dim_I % DIM != 0)) * DIM;
   const size_t dim_J_padded = (dim_J / DIM + (dim_J % DIM != 0)) * DIM;
   const size_t dim_K_padded = (dim_K / DIM + (dim_K % DIM != 0)) * DIM;

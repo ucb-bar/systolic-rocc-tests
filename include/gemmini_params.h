@@ -13,7 +13,7 @@
 #define MAX_BYTES 64
 #define MAX_BLOCK_LEN (MAX_BYTES/(DIM*1))
 #define MAX_BLOCK_LEN_ACC (MAX_BYTES/(DIM*4))
-
+#define NORM_STAT_IDS 4
 typedef int8_t elem_t;
 static const elem_t elem_t_max = 127;
 static const elem_t elem_t_min = -128;
