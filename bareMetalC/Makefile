@@ -71,6 +71,7 @@ tests = \
 	template \
 	gemv_identity\
 	gemv_identity_sp_tiled_matvec_ws\
+	gemv_simple_sp_tiled_matvec_ws\
 
 	
 tests_baremetal = $(tests:=-baremetal)

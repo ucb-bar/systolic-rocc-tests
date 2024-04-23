@@ -22,7 +22,7 @@ const C_row_stride = 1;//ele in a row
 const sizeof_C = sizeof(elem_t);
 
 // const size_t sizeof_C = full_C ? sizeof(acc_t) : sizeof(elem_t);
-gemmini_extended3_gemv_config_ex(WEIGHT_STATIONARY, 0 & 3, 0, ACC_SCALE_IDENTITY, C_row_stride, A_row_stride, false, false, false);
+gemmini_extended3_gemv_config_ex(WEIGHT_STATIONARY, 0 & 3, 0, 1, A_row_stride, A_row_stride, false, false, false);
 gemmini_extended_config_st(1 * sizeof_C, 0 & 3, scale);
 gemmini_extended3_config_ld(DIM * A_row_stride * sizeof(elem_t), A_scale_factor, false, 0);
 gemmini_extended3_config_ld(1 * sizeof(elem_t), B_scale_factor, false, 1)
@@ -41,24 +41,19 @@ gemmini_extended3_config_ld(1 * sizeof(elem_t), B_scale_factor, false, 1)
     }
 #endif
 
-#ifndef BAREMETAL
-    if (mlockall(MCL_CURRENT | MCL_FUTURE) != 0) {
-      perror("mlockall failed");
-      exit(1);
-    }
-#endif
   printf("Flush Gemmini TLB of stale virtual addresses\n");
   gemmini_flush(0);
+
   printf("Initialize our input and output matrices in main memory\n");
   elem_t B[DIM];
-  elem_t C[DIM];
-  elem_t A[DIM][DIM];
+  elem_t C[DIM*DIM];
+
+  elem_t A[DIM*DIM][DIM];
   for (size_t i = 0; i < DIM; i++) {
     B[i] = i;
-    for (size_t j = 0; j < DIM; j++)
-      A[i][j] = i == j;
+    for (size_t j = 0; j < DIM*DIM; j++)
+      A[j][i] = i + j*DIM;
 }
-
   sp_tiled_matvec_ws(A, B, C, A_scale_factor, B_scale_factor, DIM,1, 1, 0, 0, 0, A_row_stride, B_row_stride, C_row_stride, false, false);
   // printf("Calculate the scratchpad addresses of all our matrices\n");
   // printf("  Note: The scratchpad is \"row-addressed\", where each address contains one matrix row\n");

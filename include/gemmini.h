@@ -240,6 +240,9 @@ static acc_scale_t_bits acc_scale_t_to_acc_scale_t_bits(acc_scale_t x) {
   gemmini_preload(GARBAGE_ADDR, C)
 
 // config
+#define gemmini_extended3_gemv_config_ex(dataflow, sys_act, sys_shift, sys_acc_scale, C_stride, A_stride, A_transpose, B_transpose, set_only_strides) \
+    ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, ((uint64_t)acc_scale_t_to_acc_scale_t_bits((acc_scale_t)sys_acc_scale) << 32) | ((uint64_t)(A_stride) << 16) | (B_transpose << 9) | (A_transpose << 8) | ((set_only_strides) << 7) | (1<<6) | ((sys_act) << 3) | ((dataflow) << 2) | CONFIG_EX, ((uint64_t)(C_stride) << 48) | (sys_shift), k_CONFIG); \
+
 #define gemmini_extended3_config_ex(dataflow, sys_act, sys_shift, sys_acc_scale, C_stride, A_stride, A_transpose, B_transpose, set_only_strides) \
     ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, ((uint64_t)acc_scale_t_to_acc_scale_t_bits((acc_scale_t)sys_acc_scale) << 32) | ((uint64_t)(A_stride) << 16) | (B_transpose << 9) | (A_transpose << 8) | ((set_only_strides) << 7) | ((sys_act) << 3) | ((dataflow) << 2) | CONFIG_EX, ((uint64_t)(C_stride) << 48) | (sys_shift), k_CONFIG); \
 
@@ -284,15 +287,8 @@ static acc_scale_t_bits acc_scale_t_to_acc_scale_t_bits(acc_scale_t x) {
 #define gemmini_config_norm(q_const, q_const_type, set_stats_id_only, act_msb, stat_id, igelu_qb, igelu_qc) \
     ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, (((uint64_t) ((uint32_t) q_const)) << 32) | ((q_const_type & 1) << 18) | ((set_stats_id_only & 1) << 17) | ((act_msb & 1) << 16) | ((uint64_t)stat_id << 8) | CONFIG_BERT, ((uint64_t)((uint32_t)(igelu_qc)) << 32) | ((uint64_t)((uint32_t)(igelu_qb))), k_CONFIG)
 //preload duplicated the B ()
-//TODO: gemmini_extended_compute_gemv_preloaded
+//TODO: gemmini_extended_compute_ge
 //execute rs1 bit 48
-// compute_gemv
-#define gemmini_extended_compute_gemv_preloaded(A, BD, A_cols, A_rows, BD_cols, BD_rows) \
-  ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, (1 << (ADDR_LEN + 17)) | ((uint64_t)(A_rows) << (ADDR_LEN + 16)) | ((uint64_t)(A_cols) << ADDR_LEN) | (uint64_t)(A), ((uint64_t)(BD_rows) << (ADDR_LEN + 16)) | ((uint64_t)(BD_cols) << ADDR_LEN) | (uint64_t)(BD), k_COMPUTE_PRELOADED)
-
-#define gemmini_extended_compute_gemv_accumulated(A, BD, A_cols, A_rows, BD_cols, BD_rows) \
-  ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, (1 << (ADDR_LEN + 17)) | ((uint64_t)(A_rows) << (ADDR_LEN + 16)) | ((uint64_t)(A_cols) << ADDR_LEN) | (uint64_t)(A), ((uint64_t)(BD_rows) << (ADDR_LEN + 16)) | ((uint64_t)(BD_cols) << ADDR_LEN) | (uint64_t)(BD), k_COMPUTE_ACCUMULATE)
-
 // flush
 #define gemmini_flush(skip) \
   ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, skip, 0, k_FLUSH)
@@ -716,8 +712,8 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
   const uint32_t B_sp_addr_start = BANK_NUM * BANK_ROWS - K * DIM;
   // const uint32_t D_sp_addr_start = 1 << (ADDR_LEN-1);
   const uint32_t C_sp_addr_start = 3 << (ADDR_LEN-2) | (full_C << (ADDR_LEN-3));
-  const int A_blocks = a_transpose ? (I <= MAX_BLOCK_LEN ? I : MAX_BLOCK_LEN) : (K <= MAX_BLOCK_LEN ? K : MAX_BLOCK_LEN);
-  const int B_blocks = K <= MAX_BLOCK_LEN ? K : MAX_BLOCK_LEN;
+  const int A_blocks =1;
+  const int B_blocks =1;
   // const int D_blocks = low_D ? (J <= MAX_BLOCK_LEN ? J : MAX_BLOCK_LEN) : (J <= MAX_BLOCK_LEN_ACC ? J : MAX_BLOCK_LEN_ACC);
   const int C_blocks = full_C ? 1 : (J <= MAX_BLOCK_LEN ? J : MAX_BLOCK_LEN);
   // const size_t sizeof_D = low_D ? sizeof(elem_t) : sizeof(acc_t);
@@ -741,7 +737,7 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
   for (size_t b=0; b < DIM; b++) {
     for (size_t k = 0; k < K; k++) {
       // for (size_t j = 0; j < J; j++) {
-      for (size_t i = 0; i < I; i++) {
+      for (size_t i = 0; i < I/DIM; i++) {
         //load to SPAD
         const uint32_t A_sp_addr = a_transpose ? (A_sp_addr_start + b* BANK_ROWS + (k*I + i)) : (A_sp_addr_start  + b * BANK_ROWS + (i*K + k));
         const uint32_t B_sp_addr = B_sp_addr_start + k*DIM;
@@ -751,7 +747,7 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
         // Mvin A
         if (a_transpose) {
           if (i % A_blocks == 0) {
-            const elem_t * const A_dram_addr = A + (k*b*A_row_stride*DIM + i)*DIM;
+            const elem_t * const A_dram_addr = A + b*A_row_stride + i*DIM + k*A_row_stride*DIM*DIM;
             const size_t blocks = 1;
             // const size_t blocks = i + A_blocks <= I ? A_blocks : I-i;
             //max_block 64/DIM 
@@ -761,7 +757,8 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
           }
         } else {
           if (k % A_blocks == 0) {
-            const elem_t * const A_dram_addr = A + (i*b*A_row_stride*DIM + k)*DIM;
+            // const elem_t * const A_dram_addr = A + (i*b*A_row_stride*DIM + k)*DIM;
+            const elem_t * const A_dram_addr = A + b*A_row_stride + k*DIM + i*A_row_stride*DIM*DIM;
             const size_t blocks = 1;
             // const size_t blocks = k + A_blocks <= K ? A_blocks : K-k;
             const size_t cols = DIM;
@@ -779,7 +776,7 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
         //     gemmini_extended_mvin2(B_dram_addr, B_sp_addr, cols, rows);
         //   }
       // } else {
-        if (i == 0) {
+        if (b == 0 && i == 0) {
           const elem_t * const B_dram_addr = B + (k*B_row_stride)*DIM;
           const size_t blocks = B_blocks;
           // const size_t blocks = j + B_blocks <= J ? B_blocks : J-j;
@@ -795,7 +792,7 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
   gemmini_fence();
   for (size_t k = 0; k < K; k++) {
     // for (size_t j = 0; j < J; j++) {
-    for (size_t i = 0; i < I; i++) {
+    for (size_t i = 0; i < I/DIM; i++) {
       {
         const uint32_t A_sp_addr = a_transpose ? (A_sp_addr_start + (k*I + i)*DIM) : (A_sp_addr_start + (i*K + k)*DIM);
         const uint32_t B_sp_addr = B_sp_addr_start + k*DIM;
@@ -817,11 +814,12 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
         const size_t C_rows = DIM - (i == I - 1 ? pad_I : 0);
         //no need to change for the spike test (preload inside of compute)
         // need a flag for preload 
+        printf("what the heck my dude: %d %d\n", i, k);
         gemmini_extended_preload(pre_sp_addr, out_sp_addr, B_cols, B_rows, C_cols, C_rows);
         if (i == 0) { // First iteration
-          gemmini_extended_compute_gemv_preloaded(A_sp_addr, GARBAGE_ADDR, A_cols, A_rows, DIM, DIM);
+          gemmini_extended_compute_preloaded(A_sp_addr, GARBAGE_ADDR, A_cols, A_rows, DIM, DIM);
         } else { // All other iterations
-          gemmini_extended_compute_gemv_accumulated(A_sp_addr, GARBAGE_ADDR, A_cols, A_rows, DIM, DIM);
+          gemmini_extended_compute_accumulated(A_sp_addr, GARBAGE_ADDR, A_cols, A_rows, DIM, DIM);
         }
       }
       //last iter
@@ -836,7 +834,7 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
         //mvout DIm ele instead of DIM^2
         const size_t blocks = 1;
         const size_t cols = DIM;
-        const size_t rows = 1;
+        const size_t rows = DIM;
         //each time move out DIM cols
         gemmini_extended_mvout(C_dram_addr, C_sp_addr, cols, rows);
         }
