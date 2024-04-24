@@ -16,14 +16,17 @@
 #define stride
 
 int main() {
-const A_row_stride = DIM; //ele in a row
-const B_row_stride = 1; //ele in a row
-const C_row_stride = 1;//ele in a row
+const A_row_stride = DIM; //ele in a row of DRAM
+const B_row_stride = 1; //ele in a row of DRAM
+const C_row_stride = DIM;//ele in a row of DRAM
+const A_stride = 1; //ele in a row of SPAD
+// const B_stride = 1; //ele in a row of SPAD
+const C_stride = 1;//ele in a row of SPAD
 const sizeof_C = sizeof(elem_t);
 
 // const size_t sizeof_C = full_C ? sizeof(acc_t) : sizeof(elem_t);
 gemmini_extended3_gemv_config_ex(WEIGHT_STATIONARY, 0 & 3, 0, ACC_SCALE_IDENTITY, C_row_stride, A_row_stride, false, false, false);
-gemmini_extended_config_st(1 * sizeof_C, 0 & 3, scale);
+gemmini_extended_config_st(C_row_stride * sizeof_C, 0 & 3, scale);
 gemmini_extended3_config_ld(DIM * A_row_stride * sizeof(elem_t), A_scale_factor, false, 0);
 gemmini_extended3_config_ld(1 * sizeof(elem_t), B_scale_factor, false, 1)
 //gemmini_extended_config_ex(WS, 0 & 3, 0, 1, false, false);
@@ -60,33 +63,6 @@ gemmini_extended3_config_ld(1 * sizeof(elem_t), B_scale_factor, false, 1)
 }
 
   sp_tiled_matvec_ws(A, B, C, A_scale_factor, B_scale_factor, DIM,1, 1, 0, 0, 0, A_row_stride, B_row_stride, C_row_stride, false, false);
-  // printf("Calculate the scratchpad addresses of all our matrices\n");
-  // printf("  Note: The scratchpad is \"row-addressed\", where each address contains one matrix row\n");
-  // size_t In_sp_addr = 0;
-  // size_t Out_sp_addr = DIM;
-  // size_t Identity_sp_addr = 2*DIM;
-
-  // printf("Move \"In\" matrix from main memory into Gemmini's scratchpad\n");
-  // gemmini_config_ld(1 * sizeof(elem_t));
-  // gemmini_config_st(1 * sizeof(elem_t));//out
-  // gemmini_mvin(In, In_sp_addr);//in 
-
-  // printf("Move \"Identity\" matrix from main memory into Gemmini's scratchpad\n");
-  // gemmini_config_ld(DIM * sizeof(elem_t));
-  // gemmini_config_st(DIM * sizeof(elem_t));
-  // gemmini_mvin(Identity, Identity_sp_addr);
-
-  // printf("Multiply \"In\" matrix with \"Identity\" matrix with a bias of 0\n");
-  // gemmini_config_ex(OUTPUT_STATIONARY, 0, 0);
-  // gemmini_preload_zeros(Out_sp_addr);
-  // gemmini_compute_preloaded(Identity_sp_addr, In_sp_addr);
-
-  // printf("Move \"Out\" matrix from Gemmini's scratchpad into main memory\n");
-  // gemmini_config_st(DIM * sizeof(elem_t));
-  // gemmini_mvout(Out, Out_sp_addr);
-
-  // printf("Fence till Gemmini completes all memory operations\n");
-  // gemmini_fence();
 
   printf("Check whether \"In\" and \"Out\" matrices are identical\n");
   if (!is_equal_vector(B, C)) {
@@ -94,10 +70,13 @@ gemmini_extended3_config_ld(1 * sizeof(elem_t), B_scale_factor, false, 1)
     printf("\"B\" matrix:\n");
     printVector(B);
     printf("\"C\" matrix:\n");
-    printVector(C);
-    printf("\n");
 
+    for (int i=0; i<DIM*DIM; i++){
+      printf("%d", C[i]);
+    }
+    printf("\n");
     exit(1);
+
   }
 
   printf("Input and output matrices are identical, as expected\n");

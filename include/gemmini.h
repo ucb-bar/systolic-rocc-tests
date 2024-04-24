@@ -814,7 +814,6 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
         const size_t C_rows = DIM - (i == I - 1 ? pad_I : 0);
         //no need to change for the spike test (preload inside of compute)
         // need a flag for preload 
-        printf("what the heck my dude: %d %d\n", i, k);
         gemmini_extended_preload(pre_sp_addr, out_sp_addr, B_cols, B_rows, C_cols, C_rows);
         if (i == 0) { // First iteration
           gemmini_extended_compute_preloaded(A_sp_addr, GARBAGE_ADDR, A_cols, A_rows, DIM, DIM);
