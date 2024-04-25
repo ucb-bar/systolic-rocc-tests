@@ -25,10 +25,10 @@ const C_stride = 1;//ele in a row of SPAD
 const sizeof_C = sizeof(elem_t);
 
 // const size_t sizeof_C = full_C ? sizeof(acc_t) : sizeof(elem_t);
-gemmini_extended3_gemv_config_ex(WEIGHT_STATIONARY, 0 & 3, 0, ACC_SCALE_IDENTITY, C_row_stride, A_row_stride, false, false, false);
+gemmini_extended3_gemv_config_ex(WEIGHT_STATIONARY, 0 & 3, 0, 1, C_stride, A_stride, false, false, false);
 gemmini_extended_config_st(C_row_stride * sizeof_C, 0 & 3, scale);
 gemmini_extended3_config_ld(DIM * A_row_stride * sizeof(elem_t), A_scale_factor, false, 0);
-gemmini_extended3_config_ld(1 * sizeof(elem_t), B_scale_factor, false, 1)
+gemmini_extended3_config_ld(1 * sizeof(elem_t), B_scale_factor, false, 1);
 //gemmini_extended_config_ex(WS, 0 & 3, 0, 1, false, false);
 // gemmini_extended_config_ex(dataflow, act & 3, 0, 1, a_transpose, b_transpose);
 // gemmini_extended3_config_ex(dataflow, sys_act, sys_shift, ACC_SCALE_IDENTITY, A_stride, A_transpose, B_transpose, false)
@@ -63,6 +63,7 @@ gemmini_extended3_config_ld(1 * sizeof(elem_t), B_scale_factor, false, 1)
 }
 
   sp_tiled_matvec_ws(A, B, C, A_scale_factor, B_scale_factor, DIM,1, 1, 0, 0, 0, A_row_stride, B_row_stride, C_row_stride, false, false);
+  gemmini_fence();
 
   printf("Check whether \"In\" and \"Out\" matrices are identical\n");
   if (!is_equal_vector(B, C)) {

@@ -708,6 +708,7 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
         // int act,
         // int a_spad_id, int b_spad_id
 // DIM strided movins forn A, one movin B
+
   const uint32_t A_sp_addr_start = 0;
   const uint32_t B_sp_addr_start = BANK_NUM * BANK_ROWS - K * DIM;
   // const uint32_t D_sp_addr_start = 1 << (ADDR_LEN-1);
@@ -796,7 +797,7 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
       {
         const uint32_t A_sp_addr = a_transpose ? (A_sp_addr_start + (k*I + i)*DIM) : (A_sp_addr_start + (i*K + k)*DIM);
         const uint32_t B_sp_addr = B_sp_addr_start + k*DIM;
-        const uint32_t C_sp_addr = C_sp_addr_start + i;
+        const uint32_t C_sp_addr = C_sp_addr_start + i*DIM;
         uint32_t pre_sp_addr = i == 0 ? B_sp_addr : GARBAGE_ADDR;
         uint32_t out_sp_addr = C_sp_addr;
         // If we're not using a bias, then we want to overwrite what's in the
