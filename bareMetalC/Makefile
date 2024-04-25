@@ -69,7 +69,7 @@ tests = \
 	global_average \
 	gemmini_counter \
 	template \
-	gemv_identity\
+	gemv_identity_OS\
 	gemv_identity_sp_tiled_matvec_ws\
 	gemv_simple_sp_tiled_matvec_ws\
 
