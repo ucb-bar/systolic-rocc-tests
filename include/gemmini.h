@@ -683,19 +683,6 @@ static void sp_tiled_matmul_ws(const elem_t * A, const elem_t * B,
     }
   }
 }
-
-//   // Combined loop
-//   gemmini_loop_ws(I, J, K, pad_I, pad_J, pad_K, A, B, no_bias ? NULL : D, C,
-//     A_row_stride, B_row_stride, repeating_bias ? 0 : D_row_stride, C_row_stride,
-//     a_transpose, b_transpose,
-//     full_C, low_D, !no_bias || D == NULL,
-//     act, a_spad_id, b_spad_id, false);
-// }
-
-//movinA movinB preload  compute
-//mvout to one address multi times and accomulation, 
-//treat A_blocks, B_blocks, C_blocks as 1 
-//treat B_row_stride as 1
 static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
         scale_t A_scale_factor, scale_t B_scale_factor,
         size_t I, size_t J, size_t K, size_t pad_I,size_t pad_J, size_t pad_K,
@@ -708,11 +695,11 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
         // int act,
         // int a_spad_id, int b_spad_id
 // DIM strided movins forn A, one movin B
-
   const uint32_t A_sp_addr_start = 0;
   const uint32_t B_sp_addr_start = BANK_NUM * BANK_ROWS - K * DIM;
   // const uint32_t D_sp_addr_start = 1 << (ADDR_LEN-1);
-  const uint32_t C_sp_addr_start = 3 << (ADDR_LEN-2) | (full_C << (ADDR_LEN-3));
+  // const uint32_t C_sp_addr_start = 3 << (ADDR_LEN-2) | (full_C << (ADDR_LEN-3));
+  const uint32_t C_sp_addr_start = (DIM+1)*BANK_ROWS;
   const int A_blocks =1;
   const int B_blocks =1;
   // const int D_blocks = low_D ? (J <= MAX_BLOCK_LEN ? J : MAX_BLOCK_LEN) : (J <= MAX_BLOCK_LEN_ACC ? J : MAX_BLOCK_LEN_ACC);
@@ -835,8 +822,10 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
         const size_t blocks = 1;
         const size_t cols = DIM;
         const size_t rows = DIM;
+        gemmini_fence();
         //each time move out DIM cols
         gemmini_extended_mvout(C_dram_addr, C_sp_addr, cols, rows);
+        printf("C dram: %x, C sp: %x, C: %x\n", C_dram_addr, C_sp_addr, C);
         }
       }
     }
