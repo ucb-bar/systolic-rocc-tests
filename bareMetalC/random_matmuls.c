@@ -54,8 +54,10 @@ int main() {
   // ...and whether we accumulate on top of the previous result
   static int accumulate[N*N*N] = {0};
   for (int i = 1; i < N*N*N; ++i)
-    accumulate[i] = rand() % 2;
+    // accumulate[i] = rand() % 2;
+    accumulate[i] = 0 % 2;
 
+//for out stationary: A*(B+...) set 
   static int no_output[N*N*N];
   for (int i = 0; i < N*N*N-1; ++i)
     no_output[i] = accumulate[i+1];

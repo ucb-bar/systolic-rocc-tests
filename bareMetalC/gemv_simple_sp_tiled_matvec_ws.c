@@ -47,12 +47,12 @@ gemmini_extended3_config_ld(1 * sizeof(elem_t), B_scale_factor, false, 1);
   printf("Flush Gemmini TLB of stale virtual addresses\n");
   gemmini_flush(0);
   printf("Initialize our input and output matrices in main memory\n");
+  elem_t A[DIM*DIM][DIM];
   elem_t B[DIM];
   elem_t C[DIM*DIM];
   acc_t output[DIM*DIM];
   elem_t output_gold[DIM*DIM];
 
-  elem_t A[DIM*DIM][DIM];
   // Initialize vector B
   for (size_t i = 0; i < DIM; i++) {
       B[i] = i;  // Example initialization
