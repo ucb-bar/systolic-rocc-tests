@@ -503,12 +503,7 @@ static void sp_tiled_matmul_os(const elem_t * A, const elem_t * B, const void * 
   }
 }
 
-// static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
-//         scale_t A_scale_factor, scale_t B_scale_factor,
-//         size_t I, size_t J, size_t K, size_t pad_I,size_t pad_J, size_t pad_K,
-//         size_t A_row_stride, size_t B_row_stride,size_t C_row_stride,
-//         bool a_transpose,
-//         bool full_C)
+
 static void sp_tiled_matmul_ws(const elem_t * A, const elem_t * B, 
         const void * D,  void * C,
         scale_t A_scale_factor, scale_t B_scale_factor, scale_acc_t D_scale_factor,
@@ -597,9 +592,9 @@ static void sp_tiled_matmul_ws(const elem_t * A, const elem_t * B,
           // If we're not using a bias, then we want to overwrite what's in the
           // accumulator, rather than writing over it
           int no_bias_new_matrix = no_bias && D != NULL && k == 0;
-          // if (no_bias_new_matrix) {
-          out_sp_addr &= ~(1 << (ADDR_LEN-2));
-          // }
+          if (no_bias_new_matrix) {
+            out_sp_addr &= ~(1 << (ADDR_LEN-2));
+          }
           const size_t A_cols = DIM - (k == K - 1 ? pad_K : 0);
           const size_t A_rows = DIM - (i == I - 1 ? pad_I : 0);
           const size_t B_cols = DIM - (j == J - 1 ? pad_J : 0);
@@ -692,7 +687,7 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
         scale_t A_scale_factor, scale_t B_scale_factor,
         size_t I, size_t J, size_t K, size_t pad_I,size_t pad_J, size_t pad_K,
         // size_t I, size_t J, size_t K, size_t pad_I, size_t pad_J, size_t pad_K,
-        size_t A_row_stride, size_t B_row_stride,size_t C_row_stride,
+        size_t A_row_stride, size_t C_row_stride,
         bool a_transpose,
         bool full_C) {
         // bool full_C,
@@ -700,8 +695,10 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
         // int act,
         // int a_spad_id, int b_spad_id
 // DIM strided movins forn A, one movin B
+  const uint32_t B_row_stride = 1;
   const uint32_t A_sp_addr_start = 0;
   const uint32_t B_sp_addr_start = BANK_NUM * BANK_ROWS - K * DIM;
+  // const uint32_t B_sp_addr_start = BANK_NUM * BANK_ROWS - K * DIM;
   // const uint32_t D_sp_addr_start = 1 << (ADDR_LEN-1);
   const uint32_t C_sp_addr_start = 3 << (ADDR_LEN-2) | (full_C << (ADDR_LEN-3));
   // const uint32_t C_sp_addr_start = (DIM+1)*BANK_ROWS;
@@ -774,9 +771,9 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
           const elem_t * const B_dram_addr = B + (k*B_row_stride)*DIM;
           const size_t blocks = B_blocks;
           // const size_t blocks = j + B_blocks <= J ? B_blocks : J-j;
-          const size_t cols = 1;
+          const size_t cols = DIM;
           //hardcoded to 1, need to optimize it to store B efficiently
-          const size_t rows = DIM;
+          const size_t rows = 1;
           gemmini_extended_mvin2(B_dram_addr, B_sp_addr, cols, rows);
         }
       }
@@ -808,7 +805,9 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
         const size_t C_rows = DIM - (i == I - 1 ? pad_I : 0);
         //no need to change for the spike test (preload inside of compute)
         // need a flag for preload 
-        gemmini_extended_preload(pre_sp_addr, out_sp_addr, B_cols, B_rows, C_cols, C_rows);
+        // packed data hardcode c_rows to 1
+        gemmini_extended_preload(pre_sp_addr, out_sp_addr, B_cols, B_rows, C_cols, 1);
+        // gemmini_extended_preload(pre_sp_addr, out_sp_addr, B_cols, B_rows, C_cols, C_rows);
         if (i == 0) { // First iteration
           gemmini_extended_compute_preloaded(A_sp_addr, GARBAGE_ADDR, A_cols, A_rows, DIM, DIM);
         } else { // All other iterations
