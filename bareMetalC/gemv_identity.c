@@ -60,7 +60,7 @@ int main() {
   gemmini_fence();
 
   printf("Check whether \"In\" and \"Out\" matrices are identical\n");
-  if (!is_equal_vector(In, Out)) {
+  if (!is_equal_vector(In, Out, DIM)) {
     printf("Input and output matrices are different!\n");
     printf("\"In\" matrix:\n");
     printVector(In);

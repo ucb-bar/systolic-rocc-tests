@@ -290,8 +290,8 @@ static void printVector(elem_t m[DIM]) {
   printf("\n");
 }
 
-static int is_equal_vector(elem_t x[DIM], elem_t y[DIM]) {
-  for (size_t i = 0; i < DIM; ++i) {
+static int is_equal_vector(elem_t *x, elem_t *y, size_t len) {
+  for (size_t i = 0; i < len; ++i) {
 #ifndef ELEM_T_IS_FLOAT
     if (x[i] != y[i])
 #else

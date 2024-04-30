@@ -698,8 +698,8 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
   const uint32_t A_sp_addr_start = 0;
   const uint32_t B_sp_addr_start = BANK_NUM * BANK_ROWS - K * DIM;
   // const uint32_t D_sp_addr_start = 1 << (ADDR_LEN-1);
-  // const uint32_t C_sp_addr_start = 3 << (ADDR_LEN-2) | (full_C << (ADDR_LEN-3));
-  const uint32_t C_sp_addr_start = (DIM+1)*BANK_ROWS;
+  const uint32_t C_sp_addr_start = 3 << (ADDR_LEN-2) | (full_C << (ADDR_LEN-3));
+  // const uint32_t C_sp_addr_start = (DIM+1)*BANK_ROWS;
   const int A_blocks =1;
   const int B_blocks =1;
   // const int D_blocks = low_D ? (J <= MAX_BLOCK_LEN ? J : MAX_BLOCK_LEN) : (J <= MAX_BLOCK_LEN_ACC ? J : MAX_BLOCK_LEN_ACC);
@@ -768,7 +768,7 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
           const elem_t * const B_dram_addr = B + (k*B_row_stride)*DIM;
           const size_t blocks = B_blocks;
           // const size_t blocks = j + B_blocks <= J ? B_blocks : J-j;
-          const size_t cols = 1;
+          const size_t cols = DIM;
           //hardcoded to 1, need to optimize it to store B efficiently
           const size_t rows = DIM;
           gemmini_extended_mvin2(B_dram_addr, B_sp_addr, cols, rows);
@@ -791,7 +791,7 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
         // accumulator, rather than writing over it
         // int no_bias_new_matrix = no_bias && D != NULL && k == 0;
         // if (no_bias_new_matrix) {
-        //   out_sp_addr &= ~(1 << (ADDR_LEN-2));
+        out_sp_addr &= ~(1 << (ADDR_LEN-2));
         // }
         //A_cols = DIM unless it's the last block that is DIM - pad_K
         const size_t A_cols = DIM - (k == K - 1 ? pad_K : 0);
