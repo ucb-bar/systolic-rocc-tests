@@ -25,6 +25,23 @@
 #endif
 
 // #define GEMMINI_ASSERTIONS
+// Matvec utility functions
+static void matvec(elem_t A[DIM][DIM], elem_t B[DIM], elem_t D[DIM], full_t C_full[DIM]) {
+  for (size_t r = 0; r < DIM; r++) {
+      C_full[r] = D[r];
+      for (size_t k = 0; k < DIM; k++)
+        C_full[r] += A[r][k]*B[k];
+  }
+}
+
+static void matvec_full(elem_t A[DIM][DIM], elem_t B[DIM], full_t D[DIM], full_t C_full[DIM]) {
+  // Identical to the other matmul function, but with a 64-bit bias
+  for (size_t r = 0; r < DIM; r++) {
+      C_full[r] = D[r];
+      for (size_t k = 0; k < DIM; k++)
+        C_full[r] += A[r][k]*B[k];
+  }
+}
 
 // Matmul utility functions
 static void matmul(elem_t A[DIM][DIM], elem_t B[DIM][DIM], elem_t D[DIM][DIM], full_t C_full[DIM][DIM]) {
@@ -158,6 +175,20 @@ static void matshift(full_t full[DIM][DIM], elem_t out[DIM][DIM], int shift) {
 #endif
     }
 }
+static void vecshift(full_t full[DIM], elem_t out[DIM], int shift) {
+  for (size_t r = 0; r < DIM; r++) {
+    // Bitshift and round element
+    full_t shifted = ROUNDING_RIGHT_SHIFT(full[r], shift);
+
+      // Saturate and cast element
+#ifndef ELEM_T_IS_FLOAT
+    full_t elem = shifted > elem_t_max ? elem_t_max : (shifted < elem_t_min ? elem_t_min : shifted);
+    out[r] = elem;
+#else
+    out[r] = shifted; // TODO should we also saturate when using floats?
+#endif
+  }
+}
 
 static void matscale(full_t full[DIM][DIM], elem_t out[DIM][DIM], acc_scale_t scale) {
   for (size_t r = 0; r < DIM; r++)
@@ -179,6 +210,10 @@ static void matrelu(elem_t in[DIM][DIM], elem_t out[DIM][DIM]) {
   for (size_t r = 0; r < DIM; r++)
     for (size_t c = 0; c < DIM; c++)
       out[r][c] = in[r][c] > 0 ? in[r][c] : 0;
+}
+static void vecrelu(elem_t in[DIM], elem_t out[DIM]) {
+  for (size_t r = 0; r < DIM; r++)
+    out[r] = in[r] > 0 ? in[r] : 0;
 }
 
 static void transpose(elem_t in[DIM][DIM], elem_t out[DIM][DIM]) {

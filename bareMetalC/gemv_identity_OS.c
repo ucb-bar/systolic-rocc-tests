@@ -46,8 +46,8 @@ int main() {
   }
 
   printf("Move \"Identity\" matrix from main memory into Gemmini's scratchpad\n");
-  gemmini_config_ld(DIM * sizeof(elem_t));
-  gemmini_config_st(DIM * sizeof(elem_t));
+  gemmini_config_ld(1 * sizeof(elem_t));
+  gemmini_config_st(1 * sizeof(elem_t));
   for (int i = 0; i < DIM; i++) {
     gemmini_mvin(Identity[i], Identity_sp_addr + BANK_ROWS*i);
   }

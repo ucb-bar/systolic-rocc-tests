@@ -69,11 +69,12 @@ tests = \
 	global_average \
 	gemmini_counter \
 	template \
-	gemv_identity_OS\
-	gemv_identity_sp_tiled_matvec_ws\
+	gemv_identity_OS \
+	gemv_identity_sp_tiled_matvec_os \
+	gemv_identity_sp_tiled_matvec_ws \
 	gemv_simple_sp_tiled_matvec_ws\
 	gemv_random\
-
+	gemv_random_os \
 
 tests_baremetal = $(tests:=-baremetal)
 
