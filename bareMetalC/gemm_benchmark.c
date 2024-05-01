@@ -52,7 +52,7 @@ static uint64_t startTimestamp;
             }
 
             // Start timing the matrix-vector multiplication
-            printf("Starting gemmini matvec with tile_I=%d, tile_K=%d\n", tile_I, tile_K);
+            printf("Starting gemmini matmul with tile_I=%d, tile_K=%d\n", tile_I, tile_K);
             unsigned long start = read_cycles();
             //hardcode C to be NULL for performance measurement purpose (not for correctness testing)
             sp_tiled_matmul_ws(A, B, NULL, NULL, A_scale_factor, B_scale_factor, D_scale_factor,  tile_I*DIM,1, tile_K, 0, 0, 0, A_row_stride, B_row_stride, D_row_stride, C_row_stride, false,false, false, false,  false, false, 0, 1,1);
