@@ -73,9 +73,10 @@ tests = \
 	gemv_identity_sp_tiled_matvec_ws\
 	gemv_simple_sp_tiled_matvec_ws\
 	gemv_random\
-	gemm_benchmark \
 	gemv_benchmark \
-	
+	static_unrolled_gemv\
+	gemv_simple_packed_ws\
+
 tests_baremetal = $(tests:=-baremetal)
 
 ifeq ($(findstring spike,$(RUNNER)),spike)
