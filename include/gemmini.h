@@ -698,7 +698,8 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
 // DIM strided movins forn A, one movin B
   const uint32_t B_row_stride = 1;
   const uint32_t A_sp_addr_start = 0;
-  const uint32_t B_sp_addr_start = BANK_NUM * BANK_ROWS - K * DIM;
+  //hardcoded BANK_NUM to be 5 for GEMV so that the rest can be dummy
+  const uint32_t B_sp_addr_start = 5 * BANK_ROWS - K * DIM;
   // const uint32_t D_sp_addr_start = 1 << (ADDR_LEN-1);
   // const uint32_t C_sp_addr_start = 3 << (ADDR_LEN-2) | (full_C << (ADDR_LEN-3));
   const uint32_t C_sp_addr_start = 3 << (ADDR_LEN-2) | (full_C << (ADDR_LEN-3));
