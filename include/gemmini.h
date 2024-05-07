@@ -3,6 +3,7 @@
 #ifndef SRC_MAIN_C_GEMMINI_H
 #define SRC_MAIN_C_GEMMINI_H
 
+#include "gemmini_params.h"
 #undef abs
 
 #include <stdint.h>
@@ -687,7 +688,7 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
         scale_t A_scale_factor, scale_t B_scale_factor,
         size_t I, size_t J, size_t K, size_t pad_I,size_t pad_J, size_t pad_K,
         // size_t I, size_t J, size_t K, size_t pad_I, size_t pad_J, size_t pad_K,
-        size_t A_row_stride, size_t B_row_stride,size_t C_row_stride,
+        size_t A_row_stride, size_t C_row_stride,
         bool a_transpose,
         bool full_C) {
         // bool full_C,
@@ -695,11 +696,12 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
         // int act,
         // int a_spad_id, int b_spad_id
 // DIM strided movins forn A, one movin B
+  const uint32_t B_row_stride = 1;
   const uint32_t A_sp_addr_start = 0;
   const uint32_t B_sp_addr_start = BANK_NUM * BANK_ROWS - K * DIM;
   // const uint32_t D_sp_addr_start = 1 << (ADDR_LEN-1);
+  // const uint32_t C_sp_addr_start = 3 << (ADDR_LEN-2) | (full_C << (ADDR_LEN-3));
   const uint32_t C_sp_addr_start = 3 << (ADDR_LEN-2) | (full_C << (ADDR_LEN-3));
-  // const uint32_t C_sp_addr_start = (DIM+1)*BANK_ROWS;
   const int A_blocks =1;
   const int B_blocks =1;
   // const int D_blocks = low_D ? (J <= MAX_BLOCK_LEN ? J : MAX_BLOCK_LEN) : (J <= MAX_BLOCK_LEN_ACC ? J : MAX_BLOCK_LEN_ACC);
@@ -728,7 +730,7 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
       for (size_t i = 0; i < I/DIM; i++) {
         //load to SPAD
         const uint32_t A_sp_addr = a_transpose ? (A_sp_addr_start + b* BANK_ROWS + (k*I + i)) : (A_sp_addr_start  + b * BANK_ROWS + (i*K + k));
-        const uint32_t B_sp_addr = B_sp_addr_start + k*DIM;
+        const uint32_t B_sp_addr = B_sp_addr_start;
         // const uint32_t B_sp_addr = b_transpose ? (B_sp_addr_start + (j*K + k)*DIM) : (B_sp_addr_start + (k*J + j)*DIM);
         const uint32_t C_sp_addr = C_sp_addr_start + i*DIM;
         // const uint32_t C_sp_addr = C_sp_addr_start + (i*J + j)*DIM;
@@ -770,7 +772,7 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
           // const size_t blocks = j + B_blocks <= J ? B_blocks : J-j;
           const size_t cols = DIM;
           //hardcoded to 1, need to optimize it to store B efficiently
-          const size_t rows = DIM;
+          const size_t rows = 1;
           gemmini_extended_mvin2(B_dram_addr, B_sp_addr, cols, rows);
         }
       }
@@ -789,9 +791,12 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
         uint32_t out_sp_addr = C_sp_addr;
         // If we're not using a bias, then we want to overwrite what's in the
         // accumulator, rather than writing over it
-        // int no_bias_new_matrix = no_bias && D != NULL && k == 0;
+        // int no_bias_new_matrix = no_bias && 
+        if (k == 0) {
+          out_sp_addr &= ~(1 << (ADDR_LEN-2));
+        }
         // if (no_bias_new_matrix) {
-        out_sp_addr &= ~(1 << (ADDR_LEN-2));
+        // out_sp_addr &= ~(1 << (ADDR_LEN-2));
         // }
         //A_cols = DIM unless it's the last block that is DIM - pad_K
         const size_t A_cols = DIM - (k == K - 1 ? pad_K : 0);
@@ -878,9 +883,9 @@ static void tiled_matmul_outer(size_t dim_I, size_t dim_J, size_t dim_K,
 
   gemmini_extended_config_ex(dataflow, act & 3, 0, 1, a_transpose, b_transpose);
   gemmini_extended_config_st(stride_C * sizeof_C, act & 3, scale);
-  gemmini_extended3_config_ld(stride_A * sizeof(elem_t), A_scale_factor, false, 0);
-  gemmini_extended3_config_ld(stride_B * sizeof(elem_t), B_scale_factor, false, 1)
-  gemmini_extended3_config_ld(repeating_bias ? 0 : (stride_D * sizeof_D), D_scale_factor, low_D, 2);
+  gemmini_extended3_config_ld(stride_A * sizeof(elem_t), A_scale_factor, false, 0);//mvin
+  gemmini_extended3_config_ld(stride_B * sizeof(elem_t), B_scale_factor, false, 1);//mvin2
+  gemmini_extended3_config_ld(repeating_bias ? 0 : (stride_D * sizeof_D), D_scale_factor, low_D, 2);//mvin3
 
   if (act == IGELU) {
     const acc_scale_t sqrt_2 = 1.41421356237;
@@ -1221,10 +1226,10 @@ static void matmul_cpu(bool transA, bool transB, size_t DIM_I, size_t DIM_J, siz
         acc_t sum_exp = 0;
         for (size_t j = 0; j < DIM_J; j++) {
           acc_t q = c_buffer[j] - max_q;
-          acc_t z = (acc_t) (-q * qln2_inv) >> 16;
+          acc_t z = (acc_t) (-q * qln2_inv);
           acc_t qp = q + z * qln2;
           acc_t q_exp = (qp + qb)*(qp + qb) + qc;
-          c_buffer[j] = q_exp >> z;
+          c_buffer[j] = q_exp;
           sum_exp += c_buffer[j];
         }
 

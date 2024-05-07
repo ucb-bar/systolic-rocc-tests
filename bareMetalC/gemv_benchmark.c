@@ -18,7 +18,7 @@
 
 int main() {
 const A_row_stride = DIM; //ele in a row of DRAM
-const B_row_stride = 1; //ele in a row of DRAM
+const B_row_stride = DIM; //ele in a row of DRAM
 const C_row_stride = DIM;//ele in a row of DRAM
 const D_row_stride = 0;
 const A_stride = 1; //ele in a row of SPAD
@@ -52,7 +52,7 @@ static uint64_t startTimestamp;
             printf("Starting gemmini matvec with tile_I=%d, tile_K=%d\n", tile_I, tile_K);
             unsigned long start = read_cycles();
             // sp_tiled_matmul_ws(A, B, NULL, NULL, A_scale_factor, B_scale_factor, D_scale_factor,  tile_I*DIM,1, tile_K, 0, 0, 0, A_row_stride, B_row_stride, D_row_stride, C_row_stride, false,false, false, false,  false, false, 0, 1,1);
-            sp_tiled_matvec_ws(A, B, C, A_scale_factor, B_scale_factor, DIM,1, 1, 0, 0, 0, A_row_stride, B_row_stride, C_row_stride, false, false);
+            sp_tiled_matvec_ws(A, B, C, A_scale_factor, B_scale_factor, DIM,1, 1, 0, 0, 0, A_row_stride, C_row_stride, false, false);
 
             unsigned long end = read_cycles();
 

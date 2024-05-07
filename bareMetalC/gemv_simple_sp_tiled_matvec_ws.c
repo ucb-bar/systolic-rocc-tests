@@ -17,7 +17,7 @@
 
 int main() {
 const A_row_stride = DIM; //ele in a row of DRAM
-const B_row_stride = 1; //ele in a row of DRAM
+const B_row_stride = DIM; //ele in a row of DRAM
 const C_row_stride = DIM;//ele in a row of DRAM
 const A_stride = 1; //ele in a row of SPAD
 // const B_stride = 1; //ele in a row of SPAD
@@ -75,7 +75,7 @@ gemmini_extended3_config_ld(B_row_stride * sizeof(elem_t), B_scale_factor, false
       output_gold[i] = output[i];
   }
 
-  sp_tiled_matvec_ws(A, B, C, A_scale_factor, B_scale_factor, DIM,1, 1, 0, 0, 0, A_row_stride, B_row_stride, C_row_stride, false, false);
+  sp_tiled_matvec_ws(A, B, C, A_scale_factor, B_scale_factor, DIM,1, 1, 0, 0, 0, A_row_stride, C_row_stride, false, false);
   gemmini_fence();
   printf("Check whether \"In\" and \"Out\" matrices are identical\n");
   if (!is_equal_vector(output_gold, C,  DIM*DIM)) {
