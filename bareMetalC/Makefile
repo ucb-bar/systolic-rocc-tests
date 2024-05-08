@@ -72,9 +72,10 @@ tests = \
 	gemv_identity_OS\
 	gemv_identity_sp_tiled_matvec_ws\
 	gemv_simple_sp_tiled_matvec_ws\
+	gemv_identity_sp_tiled_matvec_os\
+	gemv_random_sp_tiled_matvec_os\
 	gemv_random\
 	gemv_benchmark \
-	static_unrolled_gemv\
 	gemv_simple_packed_ws\
 
 tests_baremetal = $(tests:=-baremetal)
