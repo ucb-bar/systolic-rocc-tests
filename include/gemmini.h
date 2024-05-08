@@ -23,6 +23,7 @@
 // Counter Definition
 #include "include/gemmini_counter.h"
 
+#define NORM_STAT_IDS 4 //TODO remove this just a temp fix for gemmini_params.h not generating correctly
 #define k_CONFIG 0
 #define k_MVIN2 1
 #define k_MVIN 2
@@ -731,7 +732,7 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
       for (size_t i = 0; i < I/DIM; i++) {
         //load to SPAD
         const uint32_t A_sp_addr = a_transpose ? (A_sp_addr_start + b* BANK_ROWS + (k*I + i)) : (A_sp_addr_start  + b * BANK_ROWS + (i*K + k));
-        const uint32_t B_sp_addr = B_sp_addr_start;
+        const uint32_t B_sp_addr = B_sp_addr_start + k;
         // const uint32_t B_sp_addr = b_transpose ? (B_sp_addr_start + (j*K + k)*DIM) : (B_sp_addr_start + (k*J + j)*DIM);
         const uint32_t C_sp_addr = C_sp_addr_start + i*DIM;
         // const uint32_t C_sp_addr = C_sp_addr_start + (i*J + j)*DIM;
@@ -785,9 +786,9 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
     // for (size_t j = 0; j < J; j++) {
     for (size_t i = 0; i < I/DIM; i++) {
       {
-        const uint32_t A_sp_addr = a_transpose ? (A_sp_addr_start + (k*I + i)*DIM) : (A_sp_addr_start + (i*K + k)*DIM);
-        const uint32_t B_sp_addr = B_sp_addr_start + k*DIM;
-        const uint32_t C_sp_addr = C_sp_addr_start + i*DIM;
+        const uint32_t A_sp_addr = a_transpose ? (A_sp_addr_start + (k*I + i)) : (A_sp_addr_start + (i*K + k));
+        const uint32_t B_sp_addr = B_sp_addr_start + k;
+        const uint32_t C_sp_addr = C_sp_addr_start + i;
         uint32_t pre_sp_addr = i == 0 ? B_sp_addr : GARBAGE_ADDR;
         uint32_t out_sp_addr = C_sp_addr;
         // If we're not using a bias, then we want to overwrite what's in the
