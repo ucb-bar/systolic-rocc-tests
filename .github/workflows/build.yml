@@ -1,0 +1,22 @@
+name: Build all tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-tests:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/kuleuven-micas/gemmini-test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build all tests
+        run: |
+          export PATH=$PATH:/riscv/bin
+          ./build.sh
