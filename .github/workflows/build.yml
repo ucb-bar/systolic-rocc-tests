@@ -18,5 +18,8 @@ jobs:
           submodules: recursive
       - name: Build all tests
         run: |
-          export PATH=$PATH:/riscv/bin
           ./build.sh
+      - name: Run all tests
+        run: |
+          cd build && make test-baremetal-bareMetalC
+
