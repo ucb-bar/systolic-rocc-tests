@@ -58,7 +58,7 @@ gemmini_extended_config_st(C_row_stride * sizeof_C, 0 & 3, scale);
   elem_t B[K];
   elem_t C[I];
   elem_t A[K][I];
-  elem_t golden[I];
+  full_t golden[I];
   for (size_t i = 0; i < I; i++)
     for (size_t k = 0; k < K; k++) {
       B[k] = (rand() % 64) - 32;
@@ -81,17 +81,15 @@ gemmini_extended_config_st(C_row_stride * sizeof_C, 0 & 3, scale);
   if (!is_equal_vector(B, C, I)) {
     printf("Input and golden matrices are different!\n");
     printf("\"golden\" matrix:\n");
-    printVector(golden);
+    printVector(golden, I);
     printf("\"C\" matrix:\n");
-    printVector(C);
+    printVector(C, I);
     printf("\n");
     exit(1);
 
   }
 
   printf("Input and golden matrices are identical, as expected\n");
-  for (size_t i =0; i < K/DIM; i++) {
-    printVector(C + i*sizeof_C);
-  }
+  printVector(C, I);
   exit(0);
 }

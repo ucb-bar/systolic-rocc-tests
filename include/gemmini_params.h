@@ -10,6 +10,7 @@
 #define BANK_NUM 8
 #define BANK_ROWS 8192
 #define ACC_ROWS 4096
+#define NORM_STAT_IDS 4
 #define MAX_BYTES 64
 #define MAX_BLOCK_LEN (MAX_BYTES/(DIM*1))
 #define MAX_BLOCK_LEN_ACC (MAX_BYTES/(DIM*4))

@@ -68,9 +68,9 @@ int main() {
   if (!is_equal_vector(In, Out, DIM)) {
     printf("Input and output matrices are different!\n");
     printf("\"In\" matrix:\n");
-    printVector(In);
+    printVector(In, DIM);
     printf("\"Out\" matrix:\n");
-    printVector(Out);
+    printVector(Out, DIM);
     printf("\n");
 
     exit(1);
@@ -78,8 +78,8 @@ int main() {
 
   printf("Input and output matrices are identical, as expected\n");
   printf("\"In\" matrix:\n");
-  printVector(In);
+  printVector(In, DIM);
   printf("\"Out\" matrix:\n");
-  printVector(Out);
+  printVector(Out, DIM);
   exit(0);
 }

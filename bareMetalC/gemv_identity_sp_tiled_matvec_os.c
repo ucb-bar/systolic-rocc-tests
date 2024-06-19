@@ -48,39 +48,35 @@ gemmini_extended_config_st(C_row_stride * sizeof_C, 0 & 3, scale);
   printf("Initialize our input and golden matrices in main memory\n");
 
   size_t I = DIM*DIM;
-  size_t K = DIM;
+  size_t K = DIM*DIM;
 
   elem_t B[K];
   elem_t C[I];
   elem_t A[K][I];
-  elem_t golden[I];
+
   for (size_t i = 0; i < I; i++)
     for (size_t k = 0; k < K; k++) {
       B[k] = k + 1;
       A[k][i] = i == k;
   }
 
-  printMatrix(A);
-
-  sp_tiled_matvec_os(A, B, NULL, C, A_scale_factor, B_scale_factor, 0, I/DIM, K/DIM, 0, 0, A_row_stride, B_row_stride, 0, C_row_stride, false, false);
+  sp_tiled_matvec_os(A, B, NULL, C, A_scale_factor, B_scale_factor, 0, K/DIM, I/DIM, 0, 0, A_row_stride, B_row_stride, 0, C_row_stride, false, false);
   gemmini_fence();
 
   printf("Check whether \"In\" and \"Out\" matrices are identical\n");
   if (!is_equal_vector(B, C, I)) {
-    printf("Input and golden matrices are different!\n");
+    printf("Input and output matrices are not identical!\n");
     printf("\"B\" matrix:\n");
-    printVector(B_GARBAGE_CYCLES);
+    printVector(B, I);
     printf("\"C\" matrix:\n");
-    printVector(C);
+    printVector(C, I);
     printf("\n");
     exit(1);
 
   }
 
-  printf("Input and golden matrices are identical, as expected\n");
-  for (size_t i =0; i < K/DIM; i++) {
-    printVector(C + i*sizeof_C);
-  }
+  printf("Input and output matrices are identical, as expected\n");
+  printVector(C, I);
   exit(0);
 }
 

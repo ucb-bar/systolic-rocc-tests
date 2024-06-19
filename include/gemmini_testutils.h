@@ -279,8 +279,9 @@ static uint64_t read_cycles() {
     // const uint32_t * mtime = (uint32_t *)(33554432 + 0xbffc);
     // return *mtime;
 }
-static void printVector(elem_t m[DIM]) {
-  for (size_t i = 0; i < DIM; ++i) {
+
+static void printVector(elem_t *m, size_t len) {
+  for (size_t i = 0; i < len; ++i) {
 #ifndef ELEM_T_IS_FLOAT
       printf("%d ", m[i]);
 #else

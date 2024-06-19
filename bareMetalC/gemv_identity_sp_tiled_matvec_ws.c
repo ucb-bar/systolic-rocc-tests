@@ -69,7 +69,7 @@ gemmini_extended3_config_ld(1 * sizeof(elem_t), B_scale_factor, false, 1);
   if (!is_equal_vector(B, C, DIM)) {
     printf("Input and output matrices are different!\n");
     printf("\"B\" matrix:\n");
-    printVector(B);
+    printVector(B, DIM);
     printf("\"C\" matrix:\n");
 
     for (int i=0; i<DIM*DIM; i++){
@@ -82,9 +82,9 @@ gemmini_extended3_config_ld(1 * sizeof(elem_t), B_scale_factor, false, 1);
 
   printf("Input and output matrices are identical, as expected\n");
   printf("\"B\" matrix:\n");
-  printVector(B);
+  printVector(B, DIM);
   printf("\"C\" matrix:\n");
-  printVector(C);
+  printVector(C, DIM);
   exit(0);
 }
 
