@@ -511,11 +511,14 @@ static void sp_tiled_matvec_os(const elem_t * A, const elem_t * B, const void * 
         size_t I, size_t K, size_t pad_I, size_t pad_K,
         size_t A_row_stride, size_t B_row_stride, size_t D_row_stride, size_t C_row_stride,
         bool a_transpose, bool full_C) {
+  
+  gemmini_extended3_gemv_config_ex(OUTPUT_STATIONARY, 0 & 3, 0, 1, 1, 1, false, false, false);
+  gemmini_extended_config_st(C_row_stride * sizeof(elem_t), 0 & 3, 1);
 
   const uint32_t A_sp_addr_start = 0;
   const uint32_t B_sp_addr_start = (DIM+2)*BANK_ROWS - K * DIM;
   const uint32_t D_sp_addr_start = 1 << (ADDR_LEN-1);
-  const uint32_t C_sp_addr_start = (DIM+1)*BANK_ROWS;
+  const uint32_t C_sp_addr_start = B_sp_addr_start - I * DIM;
   const int A_blocks = 1;
   const int B_blocks = 1;
   const int D_blocks = 1;
@@ -544,9 +547,9 @@ static void sp_tiled_matvec_os(const elem_t * A, const elem_t * B, const void * 
 
   // Move-in B
   gemmini_extended_config_ld(B_row_stride * sizeof(elem_t), B_scale_factor);
-  for (size_t i = 0; i < I; i++) {
-    const elem_t * const B_dram_addr = B + (i*B_row_stride)*DIM;
-    const uint32_t B_sp_addr = B_sp_addr_start + i;
+  for (size_t k = 0; k < K; k++) {
+    const elem_t * const B_dram_addr = B + (k*B_row_stride)*DIM;
+    const uint32_t B_sp_addr = B_sp_addr_start + k;
     const size_t blocks = 1;
     const size_t cols = DIM;
     const size_t rows = 1;
@@ -556,35 +559,35 @@ static void sp_tiled_matvec_os(const elem_t * A, const elem_t * B, const void * 
   }
 
   // Move-in A
-  gemmini_extended_config_ld(K * A_row_stride * sizeof(elem_t), A_scale_factor);
+  gemmini_extended_config_ld(I * A_row_stride * sizeof(elem_t), A_scale_factor);
   
   // i in this block represents the row index, not the block
-  for (size_t k = 0; k < K; k ++) {
-    for (size_t i = 0; i < I*DIM; i++) {
-      const elem_t * const A_dram_addr = A + k * DIM * sizeof(elem_t) + i * DIM * K * sizeof(elem_t);
-      const uint32_t A_sp_addr = A_sp_addr_start  + k * BANK_ROWS + i;
+  for (size_t i = 0; i < I; i ++) {
+    for (size_t k = 0; k < K; k++) {
+      // divide I by DIM to get the number of I tiles
+      const elem_t * const A_dram_addr = A + i * DIM * sizeof(elem_t) + k * DIM * DIM * DIM * I/DIM * sizeof(elem_t);
+      const uint32_t A_sp_addr = A_sp_addr_start  + i * BANK_ROWS + k * DIM;
 
-      printf("A_addr: %llx\t%llx\t -- %llu %llu\n", A_dram_addr, A_sp_addr, *A_dram_addr, *(A_dram_addr + 1));
+      // printf("A_addr: %llx\t%llx\t -- %llu %llu\n", A_dram_addr, A_sp_addr, *A_dram_addr, *(A_dram_addr + 1));
       const size_t blocks = k + A_blocks <= K ? A_blocks : K-k;
       const size_t cols = DIM;
-      const size_t rows = 1;
+      const size_t rows = DIM;
       gemmini_extended_mvin(A_dram_addr, A_sp_addr, cols, rows);
     }
   }
   gemmini_fence();
 
-  printf("DEBUG: %d %d \n", I, K/DIM);
 
-  for (size_t i = 0; i < I; i++) {
+  for (size_t i = 0; i < I/DIM; i++) {
       const uint32_t C_sp_addr = C_sp_addr_start +  i;
 
-      for (size_t k = 0; k < K/DIM; k++) {
+      for (size_t k = 0; k < K; k++) {
 
-        const uint32_t A_sp_addr = A_sp_addr_start + (i*K + k);
+        const uint32_t A_sp_addr = A_sp_addr_start + k*DIM ;
         //const uint32_t A_sp_addr = A_sp_addr_start + k*BANK_ROWS + i*K*DIM;
-        const uint32_t B_sp_addr = B_sp_addr_start + i;
+        const uint32_t B_sp_addr = B_sp_addr_start + k;
 
-        uint32_t out_sp_addr = i == I-1 ? C_sp_addr : GARBAGE_ADDR;
+        uint32_t out_sp_addr = k == K-1 ? C_sp_addr : GARBAGE_ADDR;
 
         // If we're not using a bias, then we want to overwrite what's in the
         // accumulator, rather than writing over it
@@ -614,14 +617,14 @@ static void sp_tiled_matvec_os(const elem_t * A, const elem_t * B, const void * 
   if (C != NULL) {
     const size_t sizeof_C = full_C ? sizeof(acc_t) : sizeof(elem_t);
 
-    for (size_t i = 0; i < K/DIM; i++) {
+    for (size_t i = 0; i < I/DIM; i++) {
         void * const C_dram_addr = (int8_t*)C + i*C_row_stride*DIM*sizeof_C;
         const uint32_t C_sp_addr = C_sp_addr_start + i*DIM;
 
         const size_t C_cols = DIM;
         const size_t C_rows = DIM;
 
-        // printf("C dram: %x, C sp: %x, C: %x\n", C_dram_addr, C_sp_addr, C);
+        printf("C dram: %x, C sp: %x, C: %x\n", C_dram_addr, C_sp_addr, C);
         gemmini_extended_mvout(C_dram_addr, C_sp_addr, C_cols, C_rows);
       }
   }
@@ -1446,7 +1449,7 @@ static void tiled_matmul(size_t dim_I, size_t dim_J, size_t dim_K,
   char matmul_type_str[][4] = {"OS", "WS", "CPU"};
 
   // Check if transpose options are correct
-  if (((tiled_matmul_type == OS) && (transpose_A || transpose_B)) ||
+  if ((tiled_matmul_type == OS && !transpose_A && transpose_B) ||
     (tiled_matmul_type == WS && transpose_A && transpose_B)) {
     printf("Not implemented: %s matmul, a_transpose=%d, b_transpose=%d\n", matmul_type_str[tiled_matmul_type], transpose_A, transpose_B);
     exit(1);
