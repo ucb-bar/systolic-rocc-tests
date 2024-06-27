@@ -19,7 +19,7 @@
 #define MAT_DIM_K 8
 
 int main() {
-const A_row_stride = DIM; //ele in a row of DRAM
+const A_row_stride = MAT_DIM_I; //ele in a row of DRAM
 const B_row_stride = 1; //ele in a row of DRAM
 const C_row_stride = DIM;//ele in a row of DRAM
 

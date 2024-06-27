@@ -511,7 +511,6 @@ static void sp_tiled_matvec_os(const elem_t * A, const elem_t * B, const void * 
         size_t I, size_t K, size_t pad_I, size_t pad_K,
         size_t A_row_stride, size_t B_row_stride, size_t D_row_stride, size_t C_row_stride,
         bool a_transpose, bool full_C) {
-  printf("dim, %d %d padding, %d %d", I, K, pad_I, pad_K);
   
   gemmini_extended3_gemv_config_ex(OUTPUT_STATIONARY, 0 & 3, 0, 1, 1, 1, false, false, false);
   gemmini_extended_config_st(C_row_stride * sizeof(elem_t), 0 & 3, 1);
@@ -626,8 +625,7 @@ static void sp_tiled_matvec_os(const elem_t * A, const elem_t * B, const void * 
         const uint32_t C_sp_addr = C_sp_addr_start + i*DIM;
 
         const size_t C_cols = DIM;
-        const size_t C_rows = i == I_without_tail ? pad_I2 : DIM;
-        printf("i==%d: %d %d \n", i, C_rows, C_cols);
+        const size_t C_rows = (i == I_without_tail && is_pad_I) ? pad_I2 : DIM;
 
         gemmini_extended_mvout(C_dram_addr, C_sp_addr, C_cols, C_rows);
     }
@@ -640,7 +638,6 @@ static void sp_tiled_matvec_os(const elem_t * A, const elem_t * B, const void * 
         const size_t C_cols = DIM - pad_I;
         const size_t C_rows = 1;
 
-        printf("tail==%d %d \n", C_rows, C_cols);
         gemmini_extended_mvout(C_dram_addr, C_sp_addr, C_cols, C_rows);
     }
   }

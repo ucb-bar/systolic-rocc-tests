@@ -35,8 +35,8 @@ int main() {
   gemmini_flush(0);
   printf("Initialize our input and golden matrices in main memory\n");
 
-  size_t I = 5;
-  size_t K = 5;
+  size_t I = DIM*DIM;
+  size_t K = DIM;
 
   elem_t B[K];
   elem_t C[I];
@@ -54,7 +54,7 @@ int main() {
   const B_row_stride = 1; //ele in a row of DRAM
   const C_row_stride = DIM;//ele in a row of DRAM
   const D_row_stride = DIM;//ele in a row of DRAM
-  sp_tiled_matvec_os(A, B, D, C, A_scale_factor, B_scale_factor, D_scale_factor, I/DIM + (I%DIM != 0), K/DIM + (K%DIM != 0), (DIM - I%DIM)%DIM, (DIM - K%DIM)%DIM, A_row_stride, B_row_stride, D_row_stride, C_row_stride, false, false);
+  sp_tiled_matvec_os(A, B, NULL, C, A_scale_factor, B_scale_factor, D_scale_factor, I/DIM + (I%DIM != 0), K/DIM + (K%DIM != 0), (DIM - I%DIM)%DIM, (DIM - K%DIM)%DIM, A_row_stride, B_row_stride, D_row_stride, C_row_stride, false, false);
   gemmini_fence();
 
   printf("Check whether \"In\" and \"Out\" matrices are identical\n");
