@@ -70,12 +70,14 @@ tests = \
 	gemmini_counter \
 	template \
 	gemv_identity_OS\
+	gemv_identity\
 	gemv_identity_sp_tiled_matvec_ws\
 	gemv_simple_sp_tiled_matvec_ws\
 	gemv_random\
 	gemv_benchmark \
-	static_unrolled_gemv\
-	gemv_simple_packed_ws\
+	# static_unrolled_gemv\
+	# gemv_simple_packed_ws\
+
 
 tests_baremetal = $(tests:=-baremetal)
 

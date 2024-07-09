@@ -202,17 +202,71 @@ double rand_double() {
 }
 #endif
 
+
+void NN_printFloat(float v, int16_t num_digits) {
+  if (isinf(v)) {
+    if (signbit(v)) {
+      printf("-inf");
+    } else {
+      printf("inf");
+    }
+    return;
+  }
+  
+  if (v < 0) {
+    printf("-");  // Print the minus sign for negative numbers
+    v = -v;        // Make the number positive for processing
+  }
+
+  // Calculate the integer part of the number
+  long int_part = (long)v;
+  float fractional_part = v - int_part;
+
+  // Print the integer part
+  printf("%ld", int_part);
+
+  if (num_digits > 0) {
+    printf("."); // Print the decimal point
+  }
+
+  // Handle the fractional part
+  while (num_digits > 0) {
+    num_digits -= 1;
+    fractional_part *= 10;
+    int digit = (int)(fractional_part);
+    printf("%d", digit);
+    fractional_part -= digit;
+  }
+}
+
 static void printMatrix(elem_t m[DIM][DIM]) {
   for (size_t i = 0; i < DIM; ++i) {
     for (size_t j = 0; j < DIM; ++j)
-#ifndef ELEM_T_IS_FLOAT
-      printf("%d ", m[i][j]);
-#else
-      printf("%x ", elem_t_to_elem_t_bits(m[i][j]));
-#endif
+    {
+      // printf("%f ", m[i][j]);
+      NN_printFloat(m[i][j], 5);
+      printf(" ");
+    }
+// #ifndef ELEM_T_IS_FLOAT
+//       printf("%f ", m[i][j]);
+// #else
+//       printf("%x ", elem_t_to_elem_t_bits(m[i][j]));
+// #endif
     printf("\n");
   }
 }
+
+// static void printMatrix(elem_t m[DIM][DIM]) {
+//   for (size_t i = 0; i < DIM; ++i) {
+//     for (size_t j = 0; j < DIM; ++j)
+// #ifndef ELEM_T_IS_FLOAT
+//       printf("%d ", m[i][j]);
+// #else
+//       printf("%x ", elem_t_to_elem_t_bits(m[i][j]));
+// #endif
+//     printf("\n");
+//   }
+// }
 
 static void printMatrixAcc(acc_t m[DIM][DIM]) {
   for (size_t i = 0; i < DIM; ++i) {
@@ -281,14 +335,32 @@ static uint64_t read_cycles() {
 }
 static void printVector(elem_t m[DIM]) {
   for (size_t i = 0; i < DIM; ++i) {
-#ifndef ELEM_T_IS_FLOAT
-      printf("%d ", m[i]);
-#else
-      printf("%x ", elem_t_to_elem_t_bits(m[i]));
-#endif
+// #ifndef ELEM_T_IS_FLOAT
+      NN_printFloat(m[i], 5);
+      printf(" ");
+// #else
+      // printf("%x ", elem_t_to_elem_t_bits(m[i]));
+// #endif
   }
   printf("\n");
 }
+
+// static void printMatrix(elem_t m[DIM][DIM]) {
+//   for (size_t i = 0; i < DIM; ++i) {
+//     for (size_t j = 0; j < DIM; ++j)
+//     {
+//       // printf("%f ", m[i][j]);
+//       NN_printFloat(m[i][j], 5);
+//       printf(" ");
+//     }
+// // #ifndef ELEM_T_IS_FLOAT
+// //       printf("%f ", m[i][j]);
+// // #else
+// //       printf("%x ", elem_t_to_elem_t_bits(m[i][j]));
+// // #endif
+//     printf("\n");
+//   }
+// }
 
 static int is_equal_vector(elem_t *x, elem_t *y, size_t len) {
   for (size_t i = 0; i < len; ++i) {

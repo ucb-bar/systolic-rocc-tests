@@ -44,12 +44,6 @@ gemmini_extended3_config_ld(1 * sizeof(elem_t), B_scale_factor, false, 1);
     }
 #endif
 
-#ifndef BAREMETAL
-    if (mlockall(MCL_CURRENT | MCL_FUTURE) != 0) {
-      perror("mlockall failed");
-      exit(1);
-    }
-#endif
   printf("Flush Gemmini TLB of stale virtual addresses\n");
   gemmini_flush(0);
   printf("Initialize our input and output matrices in main memory\n");

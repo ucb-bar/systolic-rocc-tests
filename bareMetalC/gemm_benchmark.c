@@ -62,36 +62,10 @@ static uint64_t startTimestamp;
             printf("Cycles taken for tile_I=%d, tile_K=%d: %lu\n", tile_I, tile_K, end - start);
             gemmini_fence();
 
-            // // Compute the expected output for verification
-            // for (int i = 0; i < tile_I*DIM*DIM; i++) {
-            //     output[i] = 0;
-            //     for (int j = 0; j < tile_K*DIM; j++) {
-            //         output[i] += A[i][j] * B[j];
-            //     }
-            //     output[i] = output[i] * scale;
-            //     output[i] = output[i] > elem_t_max ? elem_t_max : output[i];
-            //     output[i] = output[i] < elem_t_min ? elem_t_min : output[i];
-            //     output_gold[i] = output[i];
-            }
-
-            // // Check and print results
-            // printf("Check whether \"In\" and \"Out\" matrices are identical\n");
-            // if (!is_equal_vector(output_gold, C, tile_I*DIM*DIM)) {
-            //     printf("C and output matrices are different!\n");
-            //     for (int i = 0; i < tile_I*DIM*DIM; i++) {
-            //         printf("%d ", C[i]);
-            //     }
-            //     printf("\n");
-            //     exit(1);
-            // }
-
-            // printf("Input and output matrices are identical, as expected\n");
-            // for (int i = 0; i < tile_I*DIM*DIM; i++) {
-            //     printf("%d ", output_gold[i]);
-            // }
-            // printf("\n");
         }
     }
+
+}
 
 
 // int main() {

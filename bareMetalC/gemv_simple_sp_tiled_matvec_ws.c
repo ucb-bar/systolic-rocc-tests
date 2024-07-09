@@ -53,15 +53,16 @@ gemmini_extended3_config_ld(B_row_stride * sizeof(elem_t), B_scale_factor, false
   elem_t output_gold[DIM*DIM];
 
   elem_t A[DIM*DIM][DIM];
-  // Initialize vector B
-  for (size_t i = 0; i < DIM; i++) {
-      B[i] = i;  // Example initialization
-  }
+
   // Initialize matrix A
   for (size_t i = 0; i < DIM; i++) {
       for (size_t j = 0; j < DIM*DIM; j++) {
           A[j][i] = i + j * DIM;  // Example initialization
       }
+  }
+  // Initialize vector B
+  for (size_t i = 0; i < DIM; i++) {
+      B[i] = i;  // Example initialization
   }
   // Calculate the output vector
   for (size_t i = 0; i < DIM*DIM; i++) { 
@@ -80,10 +81,10 @@ gemmini_extended3_config_ld(B_row_stride * sizeof(elem_t), B_scale_factor, false
   printf("Check whether \"In\" and \"Out\" matrices are identical\n");
   if (!is_equal_vector(output_gold, C,  DIM*DIM)) {
     printf("C and output matrices are different!\n");
-    // printf("\"output\" matrix:\n");
-    // printVector(output);
+    printf("\"output\" matrix:\n");
+    printVector(output);
 
-   // Print the output vector
+  //  Print the output vector
     printf("Output vector:\n");
     for (size_t i = 0; i < DIM*DIM; i++) {
         printf("%d ", output_gold[i]);
