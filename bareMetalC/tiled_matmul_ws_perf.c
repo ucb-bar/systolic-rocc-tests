@@ -72,9 +72,9 @@ int main() {
     static full_t gold_full[MAT_DIM_I][MAT_DIM_J];
     static elem_t gold[MAT_DIM_I][MAT_DIM_J];
 
-    counter_configure(0, RDMA_BYTES_REC);
-    counter_configure(1, WDMA_BYTES_SENT);
-    counter_reset();
+    //counter_configure(0, RDMA_BYTES_REC);
+    //counter_configure(1, WDMA_BYTES_SENT);
+    //counter_reset();
 
     printf("Starting gemmini matmul\n");
     printf("I: %d, J: %d, K: %d\n", MAT_DIM_I, MAT_DIM_J, MAT_DIM_K);
@@ -104,8 +104,8 @@ int main() {
     printf("Ideal cycles: %llu\n", ideal_cycles);
     printf("Utilization: %llu%%\n", utilization);
 
-    printf("RDMA_BYTES_REC: %u\n", counter_read(0));
-    printf("WDMA_BYTES_SENT: %u\n", counter_read(1));
+    //printf("RDMA_BYTES_REC: %u\n", counter_read(0));
+    //printf("WDMA_BYTES_SENT: %u\n", counter_read(1));
 
   exit(0);
 }

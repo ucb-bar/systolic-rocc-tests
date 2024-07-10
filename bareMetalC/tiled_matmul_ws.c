@@ -13,7 +13,8 @@
 #define CHECK_RESULT 1
 
 #define NO_BIAS 1
-#define FULL_BIAS_WIDTH 1
+#define FULL_BIAS_WIDTH 0
+#define ELEM_T_IS_FLOAT 1
 
 #if FULL_BIAS_WIDTH
 typedef acc_t ACC_T;
@@ -26,9 +27,9 @@ typedef elem_t ACC_T;
 #define MAT_DIM_K 512
 #define MAT_DIM_J 512
 #else
-#define MAT_DIM_I 64
-#define MAT_DIM_K 64
-#define MAT_DIM_J 64
+#define MAT_DIM_I 2
+#define MAT_DIM_K 2
+#define MAT_DIM_J 2
 #endif
 
 void print_tile(elem_t* in, int tile_dim) {
@@ -46,7 +47,7 @@ void full_matmul(elem_t A[MAT_DIM_I][MAT_DIM_K], elem_t B[MAT_DIM_K][MAT_DIM_J],
     for (size_t c = 0; c < MAT_DIM_J; c++) {
       C_full[r][c] = D[r][c];
       for (size_t k = 0; k < MAT_DIM_K; k++)
-        C_full[r][c] += A[r][k]*B[k][c];
+        C_full[r][c] = NN_floatToHalf(NN_halfToFloat(C_full[r][c]) + NN_halfToFloat(A[r][k])*NN_halfToFloat(B[k][c]));
     }
 }
 
@@ -113,16 +114,21 @@ int main() {
     // printf("Init A\n");
     for (size_t i = 0; i < MAT_DIM_I; ++i) {
       for (size_t j = 0; j < MAT_DIM_K; ++j) {
-        full_A[i][j] = RAND % 2;
+        full_A[i][j] = i == j ? NN_floatToHalf(1) : 0; //RAND % 2;
       }
     }
+    full_printMatrix(full_A);
+    printFPMatrix2(2,2,full_A);
 
     // printf("Init B\n");
     for (size_t i = 0; i < MAT_DIM_K; ++i) {
       for (size_t j = 0; j < MAT_DIM_J; ++j) {
-        full_B[i][j] = RAND % 2;
+        full_B[i][j] = i == j ? NN_floatToHalf(1) : 0; //RAND % 2;
       }
     }
+
+    full_printMatrix(full_B);
+    printFPMatrix2(2,2,full_B);
 
     // printf("Init D\n");
     for (size_t i = 0; i < MAT_DIM_I; ++i) {
@@ -130,14 +136,18 @@ int main() {
         full_D[i][j] = NO_BIAS ? 0 : RAND % 2;
       }
     }
+
+    //full_printMatrix(full_D);
+    //printFPMatrix(full_D);
+
     printf("Starting gemmini matmul\n");
     unsigned long start = read_cycles();
 
     tiled_matmul_auto(MAT_DIM_I, MAT_DIM_J, MAT_DIM_K,
             (elem_t*)full_A, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], (elem_t*)full_C,
             MAT_DIM_K, MAT_DIM_J, MAT_DIM_J, MAT_DIM_J,
-            MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY,
-            NO_ACTIVATION, ACC_SCALE_IDENTITY, 0, false,
+            NN_floatToHalf(1), NN_floatToHalf(1), NN_floatToHalf(1),
+            NO_ACTIVATION, NN_floatToHalf(1), 0, false,
             false, false,
             false, !FULL_BIAS_WIDTH,
             0,
@@ -163,13 +173,20 @@ int main() {
     printf("Cycles taken: %u\n", cpu_end-cpu_start);
     full_matscale(gold_full, gold, ACC_SCALE_IDENTITY);
 #endif
+printf("0x%x\n", full_C[0][0]);
+printf("0x%x\n", full_C[0][1]);
+printf("0x%x\n", full_C[1][0]);
+printf("0x%x\n", full_C[1][1]);
+printFPMatrix2(2,2,full_C);
 
 #if CHECK_RESULT == 1
     if (!full_is_equal(full_C, gold)) {
       printf("C:\n");
       full_printMatrix(full_C);
+      printFPMatrix2(2,2,full_C);
       printf("Gold:\n");
       full_printMatrix(gold);
+      printFPMatrix2(2,2,gold);
       printf("\n");
 
       exit(1);
