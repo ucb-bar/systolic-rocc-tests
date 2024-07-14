@@ -35,8 +35,8 @@ int main() {
   gemmini_flush(0);
   printf("Initialize our input and golden matrices in main memory\n");
 
-  size_t I = DIM*DIM;
-  size_t K = DIM;
+  size_t I = 21;
+  size_t K = 21;
 
   elem_t B[K];
   elem_t C[I];

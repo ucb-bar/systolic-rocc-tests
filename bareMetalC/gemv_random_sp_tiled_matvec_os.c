@@ -15,8 +15,8 @@
 #define scale 1.0
 #define stride
 
-#define MAT_DIM_I 16
-#define MAT_DIM_K 8
+#define MAT_DIM_I 65
+#define MAT_DIM_K 65
 
 int main() {
 const A_row_stride = MAT_DIM_I; //ele in a row of DRAM
@@ -51,11 +51,11 @@ const C_row_stride = DIM;//ele in a row of DRAM
 
   for (size_t i = 0; i < MAT_DIM_I; i++)
     for (size_t k = 0; k < MAT_DIM_K; k++) {
-      B[k] = (rand() % 32) - 16;
-      A[k][i] = (rand() % 32) - 16;
+      B[k] = k; //(rand() % 32) - 16;
+      A[k][i] = (i*MAT_DIM_K + k) % 8;//(rand() % 32) - 16;
   }
 
-  sp_tiled_matvec_os(A, B, NULL, C, A_scale_factor, B_scale_factor, 0, I_tiles, K_tiles, 0, 0, A_row_stride, B_row_stride, 0, C_row_stride, false, false);
+  sp_tiled_matvec_os(A, B, NULL, C, A_scale_factor, B_scale_factor, 0, MAT_DIM_I/DIM + (MAT_DIM_I%DIM != 0), MAT_DIM_K/DIM + (MAT_DIM_K%DIM != 0), (DIM - MAT_DIM_I%DIM)%DIM, (DIM - MAT_DIM_K%DIM)%DIM, A_row_stride, B_row_stride, 0, C_row_stride, false, false);
   gemmini_fence();
 
   static elem_t golden[MAT_DIM_I];
