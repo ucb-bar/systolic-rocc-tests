@@ -27,9 +27,9 @@ typedef elem_t ACC_T;
 #define MAT_DIM_K 512
 #define MAT_DIM_J 512
 #else
-#define MAT_DIM_I 2
-#define MAT_DIM_K 2
-#define MAT_DIM_J 2
+#define MAT_DIM_I 4
+#define MAT_DIM_K 4
+#define MAT_DIM_J 4
 #endif
 
 void print_tile(elem_t* in, int tile_dim) {
@@ -118,7 +118,7 @@ int main() {
       }
     }
     full_printMatrix(full_A);
-    printFPMatrix2(2,2,full_A);
+    printFPMatrix2(MAT_DIM_I,MAT_DIM_K,full_A);
 
     // printf("Init B\n");
     for (size_t i = 0; i < MAT_DIM_K; ++i) {
@@ -128,7 +128,7 @@ int main() {
     }
 
     full_printMatrix(full_B);
-    printFPMatrix2(2,2,full_B);
+    printFPMatrix2(MAT_DIM_K,MAT_DIM_J,full_B);
 
     // printf("Init D\n");
     for (size_t i = 0; i < MAT_DIM_I; ++i) {
@@ -177,16 +177,16 @@ printf("0x%x\n", full_C[0][0]);
 printf("0x%x\n", full_C[0][1]);
 printf("0x%x\n", full_C[1][0]);
 printf("0x%x\n", full_C[1][1]);
-printFPMatrix2(2,2,full_C);
+printFPMatrix2(MAT_DIM_I,MAT_DIM_J,full_C);
 
 #if CHECK_RESULT == 1
     if (!full_is_equal(full_C, gold)) {
       printf("C:\n");
       full_printMatrix(full_C);
-      printFPMatrix2(2,2,full_C);
+      printFPMatrix2(MAT_DIM_I,MAT_DIM_J,full_C);
       printf("Gold:\n");
       full_printMatrix(gold);
-      printFPMatrix2(2,2,gold);
+      printFPMatrix2(MAT_DIM_I,MAT_DIM_J,gold);
       printf("\n");
 
       exit(1);

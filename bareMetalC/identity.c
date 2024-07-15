@@ -10,6 +10,8 @@
 #endif
 #include "include/gemmini_testutils.h"
 
+#define ELEM_T_IS_FLOAT 1
+
 int main() {
 #ifndef BAREMETAL
     if (mlockall(MCL_CURRENT | MCL_FUTURE) != 0) {
@@ -23,31 +25,22 @@ int main() {
 
   //printf("Initialize our input and output matrices in main memory\n");
   elem_t In[DIM][DIM];
-  float In_fp[DIM][DIM];
   elem_t Out[DIM][DIM];
   elem_t Identity[DIM][DIM];
-  elem_t Identity_fp[DIM][DIM];
 
   for (size_t i = 0; i < DIM; i++) {
     for (size_t j = 0; j < DIM; j++) {
-      In[i][j] = i == j; //10 + i * DIM + j;
-      Identity[i][j] = i == j;
+      In[i][j] = i == j ? NN_floatToHalf(1) : 0; //10 + i * DIM + j;
+      Identity[i][j] = i == j ? NN_floatToHalf(1) : 0;
     }
   }
-  
-  //for (size_t i = 0; i < DIM; i++) {
-  //  for (size_t j = 0; j < DIM; j++) {
-  //    In[i][j] = NN_floatToHalf(In_fp[i][j]);
-  //    Identity[i][j] = i == j ? NN_floatToHalf(1) : 0;
-  //  }
-  //}  
 
   //printFPMatrix(Identity);
   printf("Calculate the scratchpad addresses of all our matrices\n");
   //printf("  Note: The scratchpad is \"row-addressed\", where each address contains one matrix row\n");
   size_t In_sp_addr = 0;
-  size_t Out_sp_addr = DIM;
-  size_t Identity_sp_addr = 2*DIM;
+  size_t Out_sp_addr = 2*DIM;
+  size_t Identity_sp_addr = 4*DIM;
 
   printf("Move \"In\" matrix from main memory into Gemmini's scratchpad\n");
   gemmini_config_ld(DIM * sizeof(elem_t));
@@ -81,9 +74,9 @@ int main() {
   if (!is_equal(In, Out)) {
     printf("Input and output matrices are different!\n");
     printf("\"In\" matrix:\n");
-    printMatrix(In);
+    //printFPMatrix(In);
     printf("\"Out\" matrix:\n");
-    printMatrix(Out);
+    printFPMatrix(Out);
     printf("\n");
 
     printf("FAIL\n");
