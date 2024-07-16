@@ -1033,6 +1033,7 @@ static void matmul_cpu(bool transA, bool transB, size_t DIM_I, size_t DIM_J, siz
           *c = scale_and_sat(sum, act, scale, bert_scale);
       }
 
+#ifdef HAS_NORMALIZATIONS
       if (act == LAYERNORM) {
         acc_t sum = 0;
         for (size_t j = 0; j < DIM_J; j++)
@@ -1090,6 +1091,7 @@ static void matmul_cpu(bool transA, bool transB, size_t DIM_I, size_t DIM_J, siz
           *c = scale_and_sat(c_buffer[j], act, factor, bert_scale);
         }
       }
+#endif
     }
   }
 }
