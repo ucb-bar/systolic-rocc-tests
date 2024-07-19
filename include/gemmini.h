@@ -563,7 +563,6 @@ static void sp_tiled_matvec_os(const elem_t * A, const elem_t * B, const void * 
       const elem_t * const A_dram_addr = A + i * DIM * sizeof(elem_t) + k * DIM * A_row_stride * sizeof(elem_t);
       const uint32_t A_sp_addr = A_sp_addr_start  + (i % DIM) * BANK_ROWS + (i / DIM) * K * DIM + k * DIM;
 
-      // printf("A_addr: %llx\t%llx\t -- %llu %llu\n", A_dram_addr, A_sp_addr, *A_dram_addr, *(A_dram_addr + 1));
       const size_t rows = DIM - (k == K-1 ? pad_K : 0);
       const size_t cols = DIM - (i == I-1 ? pad_I : 0);
       gemmini_extended_mvin(A_dram_addr, A_sp_addr, cols, rows);
@@ -571,8 +570,6 @@ static void sp_tiled_matvec_os(const elem_t * A, const elem_t * B, const void * 
   }
   gemmini_fence();
 
-
- printf("\n %d, %d, padd, %d, %d\n", I, K, pad_I, pad_K);
   for (size_t i = 0; i < I; i+=DIM) {
       // Every cycle saves DIM^2 elements
       const uint32_t C_sp_addr = C_sp_addr_start +  i;
@@ -964,7 +961,6 @@ static void sp_tiled_matvec_ws(const elem_t * A, const elem_t * B, void * C,
         gemmini_fence();
         //each time move out DIM cols
         gemmini_extended_mvout(C_dram_addr, C_sp_addr, cols, rows);
-        printf("C dram: %x, C sp: %x, C: %x\n", C_dram_addr, C_sp_addr, C);
         }
       }
     }
