@@ -1,6 +1,7 @@
 include $(abs_top_srcdir)/Makefrag
 
 tests = \
+	acquire_release \
 	multi_matmul_mac \
 	multi_conv_mac \
 	multi_matmul_data \
