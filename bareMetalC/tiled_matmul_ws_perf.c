@@ -107,6 +107,7 @@ int main() {
     //printf("RDMA_BYTES_REC: %u\n", counter_read(0));
     //printf("WDMA_BYTES_SENT: %u\n", counter_read(1));
 
-  exit(0);
+printf("\n");
+printf("Pass\n");
+exit(0);
 }
-

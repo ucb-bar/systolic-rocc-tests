@@ -10,6 +10,15 @@
 
 #define HEAP_SIZE (4*1024*1024)
 
+bool vec_is_equal_fp32(float *a, float *b, int len, float epsilon) {
+    for (int i = 0; i < len; i++) {
+        if (fabs(a[i] - b[i]) > epsilon) {
+            return false;
+        }
+    }
+    return true;
+}
+
 int str2int(char * str)
 {
     int res = 0;
@@ -102,8 +111,8 @@ int main (int argc, char * argv[]) {
       tiled_matmul_auto(I, J, K,
           input, weights, NO_BIAS ? NULL : bias, output,
           K, J, J, J,
-          MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY,
-          NO_ACTIVATION, ACC_SCALE_IDENTITY, 0, true,
+          NN_floatToHalf(1), NN_floatToHalf(1), NN_floatToHalf(1),
+          NO_ACTIVATION,  NN_floatToHalf(1), 0, true,
           false, false,
           false, false,
           0,
@@ -114,16 +123,13 @@ int main (int argc, char * argv[]) {
       tiled_conv_auto(
           BATCH_SIZE, IN_DIM, IN_DIM, IN_CHANNELS,
           OUT_CHANNELS, OUT_DIM, OUT_DIM,
-          STRIDE, 1, 1, PADDING, KERNEL_DIM,
+          STRIDE, 1,1, PADDING, KERNEL_DIM,
           false, false, false, false, false,
-
           (elem_t*)input,
           (elem_t*)weights,
           NO_BIAS ? NULL : (acc_t*)bias,
           (elem_t*)output,
-
-          NO_ACTIVATION, ACC_SCALE_IDENTITY, 0, 0, 0,
-
+          NO_ACTIVATION,  NN_floatToHalf(1), 0, 0, 0,
           WS);
     }
 

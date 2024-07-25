@@ -182,10 +182,10 @@ printf("0x%x\n", full_C[1][1]);
 #if CHECK_RESULT == 1
     if (!full_is_equal(full_C, gold)) {
       printf("C:\n");
-      full_printMatrix(full_C);
+      // full_printMatrix(full_C);
       printFPMatrix2(MAT_DIM_I,MAT_DIM_J,full_C);
       printf("Gold:\n");
-      full_printMatrix(gold);
+      // full_printMatrix(gold);
       printFPMatrix2(MAT_DIM_I,MAT_DIM_J,gold);
       printf("\n");
 
@@ -193,6 +193,7 @@ printf("0x%x\n", full_C[1][1]);
     }
 #endif
 
-  exit(0);
+  printf("\n");
+  printf("Pass\n");
+  exit(0);  
 }
-
