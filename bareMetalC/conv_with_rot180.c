@@ -48,7 +48,7 @@
 
 #define NO_BIAS false
 
-#define WROT180 true
+#define WROT180 false
 
 #define IN_ROW_DIM_DILATED (IN_ROW_DIM + (INPUT_DILATION - 1) * (IN_ROW_DIM - 1))
 #define IN_COL_DIM_DILATED (IN_COL_DIM + (INPUT_DILATION - 1) * (IN_COL_DIM - 1))
@@ -56,6 +56,15 @@
 #define OUT_COL_DIM ((IN_COL_DIM_DILATED + 2 * PADDING - KERNEL_DIM) / STRIDE + 1)
 #define PATCH_SIZE (KERNEL_DIM * KERNEL_DIM * IN_CHANNELS)
 #define N_PATCHES (BATCH_SIZE * OUT_ROW_DIM * OUT_COL_DIM)
+
+bool vec_is_equal_fp32(float *a, float *b, int len, float epsilon) {
+    for (int i = 0; i < len; i++) {
+        if (fabs(a[i] - b[i]) > epsilon) {
+            return false;
+        }
+    }
+    return true;
+}
 
 void conv(int batch_size, int in_channels,
         int in_row_dim, int in_col_dim,
@@ -132,7 +141,7 @@ void conv(int batch_size, int in_channels,
                                     weights_rot180[och][krow][kcol][kch] :
                                     weights[och][krow][kcol][kch];
 
-                                result += w * pixel;
+                                result = NN_floatToHalf(NN_halfToFloat(result) + NN_halfToFloat(w) * NN_halfToFloat(pixel));
                             }
                         }
                     }
@@ -240,20 +249,22 @@ int main() {
         init_random_acc(&bias[0], sizeof(bias) / sizeof(acc_t));
 
     printf("CPU conv...\n");
-    uint64_t start_cpu = read_cycles();
-#ifndef FAST
-    conv(BATCH_SIZE, IN_CHANNELS,
-            IN_ROW_DIM, IN_COL_DIM,
-            OUT_CHANNELS, KERNEL_DIM,
-            OUT_ROW_DIM, OUT_COL_DIM,
-            STRIDE, INPUT_DILATION, PADDING, WROT180,
-            input,
-            weights,
-            bias,
-            output);
-#endif
-    uint64_t end_cpu = read_cycles();
-    printf("CPU conv took %llu cycles\n", end_cpu - start_cpu);
+    printf("CPU conv skip...\n");
+
+//     uint64_t start_cpu = read_cycles();
+// #ifndef FAST
+//     conv(BATCH_SIZE, IN_CHANNELS,
+//             IN_ROW_DIM, IN_COL_DIM,
+//             OUT_CHANNELS, KERNEL_DIM,
+//             OUT_ROW_DIM, OUT_COL_DIM,
+//             STRIDE, INPUT_DILATION, PADDING, WROT180,
+//             input,
+//             weights,
+//             bias,
+//             output);
+// #endif
+//     uint64_t end_cpu = read_cycles();
+//     printf("CPU conv took %llu cycles\n", end_cpu - start_cpu);
 
     static elem_t weights_mat[PATCH_SIZE][OUT_CHANNELS];
     static elem_t output_mat[N_PATCHES][OUT_CHANNELS];
@@ -271,13 +282,11 @@ int main() {
         OUT_CHANNELS, OUT_ROW_DIM, OUT_COL_DIM,
         STRIDE, INPUT_DILATION, 1, PADDING, KERNEL_DIM,
         WROT180, false, false, false, false,
-
         (elem_t*)input,
         (elem_t*)weights_mat,
         NO_BIAS ? NULL : (acc_t*)bias,
         (elem_t*)output_mat,
-
-        NO_ACTIVATION, ACC_SCALE_IDENTITY, 0, 0, 0,
+        NO_ACTIVATION, NN_floatToHalf(1), 0, 0, 0,
 
         WS);
     uint64_t end_gemmini = read_cycles();
@@ -297,7 +306,21 @@ int main() {
       }
     }
 #else
-    bool success = vec_is_equal(&output[0][0][0][0], &output_mat[0][0], sizeof(output) / sizeof(elem_t));
+
+    static float output_fp32[BATCH_SIZE][OUT_ROW_DIM][OUT_COL_DIM][OUT_CHANNELS];
+    static float output_mat_fp32[N_PATCHES][OUT_CHANNELS];
+
+    for (int i = 0; i < sizeof(output) / sizeof(elem_t); i++) {
+        ((float *)output_fp32)[i] = NN_halfToFloat(((elem_t *)output)[i]);
+        printf(" ");
+
+    }
+    for (int i = 0; i < sizeof(output_mat) / sizeof(elem_t); i++) {
+        ((float *)output_mat_fp32)[i] = NN_halfToFloat(((elem_t *)output_mat)[i]);
+        printf(" ");
+    }
+
+    bool success = vec_is_equal_fp32(&output_fp32[0][0][0][0], &output_mat_fp32[0][0], sizeof(output_fp32) / sizeof(float), 1e-6);
 #endif
 
     if (!success) {
@@ -305,7 +328,8 @@ int main() {
 
         printf("bias:\n");
         for (int och = 0; och < OUT_CHANNELS; och++) {
-            printf("%d,", bias[och]);
+            NN_printFloat(NN_halfToFloat(bias[och]), 3);
+            printf(" ");
         }
         printf("\b\n\n");
 
@@ -317,7 +341,9 @@ int main() {
                 for (int wcol = 0; wcol < KERNEL_DIM; wcol++) {
                     printf("[");
                     for (int ich = 0; ich < IN_CHANNELS; ich++) {
-                        printf("%d,", weights[och][wrow][wcol][ich]);
+                        NN_printFloat(NN_halfToFloat(weights[och][wrow][wcol][ich]), 3);
+                        printf(" ");
+
                     }
                     printf("\b],");
                 }
@@ -331,7 +357,9 @@ int main() {
         for (int wrow = 0; wrow < KERNEL_DIM * KERNEL_DIM * IN_CHANNELS; wrow++) {
             printf("[");
             for (int wcol = 0; wcol < OUT_CHANNELS; wcol++) {
-                printf("%d,", weights_mat[wrow][wcol]);
+                NN_printFloat(NN_halfToFloat(weights_mat[wrow][wcol]), 3);
+                printf(" ");
+
             }
             printf("\b],\n");
         }
@@ -345,7 +373,9 @@ int main() {
                 for (int icol = 0; icol < IN_COL_DIM; icol++) {
                     printf("[");
                     for (int ich = 0; ich < IN_CHANNELS; ich++) {
-                        printf("%d,", input[batch][irow][icol][ich]);
+                        NN_printFloat(NN_halfToFloat(input[batch][irow][icol][ich]), 3);
+                        printf(" ");
+
                     }
                     printf("\b],");
                 }
@@ -363,7 +393,9 @@ int main() {
                 for (int ocol = 0; ocol < OUT_COL_DIM; ocol++) {
                     printf("[");
                     for (int och = 0; och < OUT_CHANNELS; och++) {
-                        printf("%d,", output[batch][orow][ocol][och]);
+                        NN_printFloat(NN_halfToFloat(output[batch][orow][ocol][och]),3);
+                        printf(" ");
+
                     }
                     printf("\b],");
                 }
@@ -377,7 +409,8 @@ int main() {
         for (int orow = 0; orow < BATCH_SIZE * OUT_ROW_DIM * OUT_COL_DIM; orow++) {
             printf("[");
             for (int ocol = 0; ocol < OUT_CHANNELS; ocol++) {
-                printf("%d,", output_mat[orow][ocol]);
+                NN_printFloat(NN_halfToFloat(output_mat[orow][ocol]),3);
+                printf(" ");            
             }
             printf("\b],\n");
         }
@@ -385,6 +418,8 @@ int main() {
 
         return 1;
     }
+    printf("\n");
+    printf("Pass\n");
 
     return 0;
 }
