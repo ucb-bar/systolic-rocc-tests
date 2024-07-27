@@ -138,21 +138,16 @@ bool vec_is_equal(elem_t * a, elem_t * b, int len) {
     return true;
 }
 
-void init_random(elem_t * buf, int row, int col, int stride){
-    elem_t i = 0;
-    for(int r = 0; r < row; r++){
-        for(int c = 0; c < col; c++){
-            elem_t * ptr = buf + r * stride + c;
-            *ptr = (rand() % 5) - 2;
-        }
+
+void init_random(elem_t * buf, int len) {
+    for (elem_t * ptr = buf; ptr < buf + len; ptr++) {
+        *ptr = NN_floatToHalf((rand() % 5) - 2.0);
     }
 }
 
 void init_random_acc(acc_t * buf, int len) {
-    elem_t i = 0;
     for (acc_t * ptr = buf; ptr < buf + len; ptr++) {
-        // *ptr = (rand() % 32) - 16;
-      *ptr = (rand() % 5) - 2;
+        *ptr = NN_floatToHalf((rand() % 5) - 2.0);
     }
 }
 

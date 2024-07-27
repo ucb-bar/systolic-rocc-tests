@@ -19,6 +19,7 @@
 #define PADDING 1
 #define STRIDE 2
 
+
 #else
 
 #ifdef FAST
@@ -34,6 +35,11 @@
 #define IN_COL_DIM 17
 #define IN_CHANNELS 18
 #define OUT_CHANNELS 19
+
+#define IN_ROW_DIM 8
+#define IN_COL_DIM 8
+#define IN_CHANNELS 2
+#define OUT_CHANNELS 4
 
 #endif
 
@@ -141,13 +147,13 @@ bool vec_is_equal(elem_t * a, elem_t * b, int len) {
 
 void init_random(elem_t * buf, int len) {
     for (elem_t * ptr = buf; ptr < buf + len; ptr++) {
-        *ptr = (rand() % 5) - 2;
+        *ptr = NN_floatToHalf((rand() % 5) - 2.0);
     }
 }
 
 void init_random_acc(acc_t * buf, int len) {
     for (acc_t * ptr = buf; ptr < buf + len; ptr++) {
-        *ptr = (rand() % 5) - 2;
+        *ptr = NN_floatToHalf((rand() % 5) - 2.0);
     }
 }
 
@@ -188,7 +194,7 @@ int main() {
     else
         init_random_acc(&bias[0], sizeof(bias) / sizeof(acc_t));
 
-    printf("CPU conv...\n");
+    // printf("CPU conv...\n");
 
     uint64_t start_cpu = read_cycles();
     conv(BATCH_SIZE, IN_CHANNELS,
@@ -255,7 +261,7 @@ int main() {
     // bool success = vec_is_equal(&output[0][0][0][0], &output_mat[0][0], sizeof(output) / sizeof(elem_t));
 #endif
 
-    if (!success) {
+    if (true) {
         printf("bias:\n");
         for (int och = 0; och < OUT_CHANNELS; och++) {
             printf(" ");
