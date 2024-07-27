@@ -94,26 +94,14 @@ bool vec_is_equal(elem_t * a, elem_t * b, int len) {
 }
 
 void init_random(elem_t * buf, int len) {
-    elem_t i = 0;
     for (elem_t * ptr = buf; ptr < buf + len; ptr++) {
-        // *ptr = (rand() % 32) - 16;
-#ifdef FAST
-      *ptr = 1;
-#else
-      *ptr = (rand() % 5) - 2;
-#endif
+        *ptr = NN_floatToHalf((rand() % 5) - 2.0);
     }
 }
 
 void init_random_acc(acc_t * buf, int len) {
-    elem_t i = 0;
     for (acc_t * ptr = buf; ptr < buf + len; ptr++) {
-        // *ptr = (rand() % 32) - 16;
-#ifdef FAST
-      *ptr = 1;
-#else
-      *ptr = (rand() % 5) - 2;
-#endif
+        *ptr = NN_floatToHalf((rand() % 5) - 2.0);
     }
 }
 
