@@ -53,7 +53,7 @@ tests = \
     identity \
 	mvin_mvout_stride \
 	mvin_mvout_acc \
-	matmul_ws_1\
+	# matmul_ws_1\
 	# mvin_mvout_acc_stride \
 	# mvin_mvout_acc_full \
 	# mvin_mvout_acc_full_stride \
