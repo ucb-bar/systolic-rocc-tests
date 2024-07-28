@@ -176,10 +176,10 @@ int main() {
     static elem_t output[BATCH_SIZE][OUT_ROW_DIM][OUT_COL_DIM][OUT_STRIDE];
 
     printf("Randomize inputs...\n");
-    init_random(&input[0][0][0][0], BATCH_SIZE*IN_ROW_DIM*IN_COL_DIM, IN_CHANNELS, IN_STRIDE);
+    init_random(&input[0][0][0][0], BATCH_SIZE*IN_ROW_DIM*IN_COL_DIM);
 
     printf("Randomize weights...\n");
-    init_random(&weights[0][0][0][0], OUT_CHANNELS*KERNEL_DIM*KERNEL_DIM,IN_CHANNELS, IN_CHANNELS);
+    init_random(&weights[0][0][0][0], OUT_CHANNELS*KERNEL_DIM*KERNEL_DIM);
 
     printf("Randomize bias...\n");
     if (NO_BIAS)

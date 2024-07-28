@@ -261,7 +261,7 @@ int main() {
     // bool success = vec_is_equal(&output[0][0][0][0], &output_mat[0][0], sizeof(output) / sizeof(elem_t));
 #endif
 
-    if (true) {
+    if (!success) {
         printf("bias:\n");
         for (int och = 0; och < OUT_CHANNELS; och++) {
             printf(" ");
