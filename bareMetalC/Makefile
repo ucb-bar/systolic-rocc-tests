@@ -50,6 +50,7 @@ tests = \
 	global_average \
 	gemmini_counter \
 	template \
+    lut_template \
     identity \
 	mvin_mvout_stride \
 	mvin_mvout_acc \

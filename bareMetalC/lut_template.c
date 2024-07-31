@@ -55,17 +55,25 @@ int main() {
   gemmini_preload_lut2(A,B);
 
   printf("Multiply \"In\" matrix with \"Identity\" matrix with a bias of 0\n");
-  gemmini_config_ex(OUTPUT_STATIONARY, 0, 0);
-  gemmini_preload_zeros(Out_sp_addr);
-  gemmini_compute_preloaded(In_sp_addr, Identity_sp_addr);
+  gemmini_config_ex(WEIGHT_STATIONARY, 0, 0);
+  gemmini_preload(Identity_sp_addr, Out_sp_addr);
+  gemmini_compute_preloaded(In_sp_addr, GARBAGE_ADDR);
 
   printf("Move \"Out\" matrix from Gemmini's scratchpad into main memory\n");
-  gemmini_config_st(DIM * sizeof(elem_t));
   gemmini_mvout(Out, Out_sp_addr);
 
   printf("Fence till Gemmini completes all memory operations\n");
   gemmini_fence();
 
+  printf("0x%x\n", Out[0][0]);
+  printf("0x%x\n", Out[0][1]);
+  printf("0x%x\n", Out[0][2]);
+  printf("0x%x\n", Out[0][3]);
+  printf("0x%x\n", Out[1][0]);
+  printf("0x%x\n", Out[1][1]);
+  printf("0x%x\n", Out[1][2]);
+  printf("0x%x\n", Out[1][3]);
+  
   printf("Check whether \"In\" and \"Out\" matrices are identical\n");
   if (!is_equal(In, Out)) {
     printf("Input and output matrices are different!\n");

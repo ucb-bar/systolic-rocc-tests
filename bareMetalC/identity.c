@@ -39,8 +39,9 @@ int main() {
   printf("Calculate the scratchpad addresses of all our matrices\n");
   //printf("  Note: The scratchpad is \"row-addressed\", where each address contains one matrix row\n");
   size_t In_sp_addr = 0;
-  size_t Out_sp_addr = 2*DIM;
-  size_t Identity_sp_addr = 4*DIM;
+  size_t Out_sp_addr = DIM;
+  size_t Identity_sp_addr = 2*DIM;
+  const uint32_t acc_addr = 1 << (ADDR_LEN-1);
 
   printf("Move \"In\" matrix from main memory into Gemmini's scratchpad\n");
   gemmini_config_ld(DIM * sizeof(elem_t));
@@ -56,7 +57,7 @@ int main() {
   gemmini_compute_preloaded(In_sp_addr, GARBAGE_ADDR);
 
   printf("Move \"Out\" matrix from Gemmini's scratchpad into main memory\n");
-  gemmini_mvout(Out, Out_sp_addr);
+  gemmini_mvout(Out, acc_addr + n*DIM);
 
   printf("Fence till Gemmini completes all memory operations\n");
   gemmini_fence();
@@ -74,7 +75,7 @@ int main() {
   if (!is_equal(In, Out)) {
     printf("Input and output matrices are different!\n");
     printf("\"In\" matrix:\n");
-    //printFPMatrix(In);
+    printFPMatrix(In);
     printf("\"Out\" matrix:\n");
     printFPMatrix(Out);
     printf("\n");
