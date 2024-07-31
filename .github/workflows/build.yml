@@ -19,7 +19,10 @@ jobs:
       - name: Build all tests
         run: |
           ./build.sh
-      - name: Run all tests
+      - name: Run tiled matmul tests (GCC)
         run: |
           cd build && make test-baremetal-bareMetalC
+      - name: Run tiled matmul tests (MLIR)
+        run: |
+          cd bareMetalMLIR && make all run
 

@@ -21,5 +21,7 @@ RUN apt-get update && \
     cd libgemmini && \
     make -j$(nproc) && make install
 
-
-
+RUN apt-get install -y lsb-release wget software-properties-common gnupg && \
+    wget https://apt.llvm.org/llvm.sh && \
+    chmod +x llvm.sh && \
+    ./llvm.sh 17

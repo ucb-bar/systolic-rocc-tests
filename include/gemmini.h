@@ -712,7 +712,6 @@ static void sp_tiled_matmul_ws(const elem_t * A, const elem_t * B,
     }
   }
 */
-
   // Combined loop
   gemmini_loop_ws(I, J, K, pad_I, pad_J, pad_K, A, B, no_bias ? NULL : D, C,
     A_row_stride, B_row_stride, repeating_bias ? 0 : D_row_stride, C_row_stride,
@@ -721,7 +720,7 @@ static void sp_tiled_matmul_ws(const elem_t * A, const elem_t * B,
     act, a_spad_id, b_spad_id, false);
 }
 
-
+#ifndef MLIR
 static void tiled_matmul_outer(size_t dim_I, size_t dim_J, size_t dim_K,
         const elem_t* A, const elem_t* B,
         const void * D, void * C,
@@ -865,6 +864,196 @@ static void tiled_matmul_outer(size_t dim_I, size_t dim_J, size_t dim_K,
 
   gemmini_fence();
 }
+
+#else // -DMLIR
+
+// Typedefs for ranked memrefs 
+
+struct TwoDMemrefI32 {
+  int32_t *data; // allocated pointer: Pointer to data buffer as allocated,
+                 // only used for deallocating the memref
+  int32_t *aligned_data; // aligned pointer: Pointer to properly aligned data
+                         // that memref indexes
+  uint64_t offset;
+  uint64_t shape[2];
+  uint64_t stride[2];
+};
+
+struct TwoDMemrefI8 {
+  int8_t *data; // allocated pointer: Pointer to data buffer as allocated,
+                // only used for deallocating the memref
+  int8_t *aligned_data; // aligned pointer: Pointer to properly aligned data
+                        // that memref indexes
+  uint64_t offset;
+  uint64_t shape[2];
+  uint64_t stride[2];
+};
+
+typedef struct TwoDMemrefI8 TwoDMemrefI8_t;
+typedef struct TwoDMemrefI32 TwoDMemrefI32_t;
+
+// Kernel provided via external definition
+extern void _mlir_ciface_tiled_matmul(
+        TwoDMemrefI8_t* a, TwoDMemrefI8_t* b,
+        TwoDMemrefI32_t* c
+);
+
+static void tiled_matmul_outer(size_t dim_I, size_t dim_J, size_t dim_K,
+        const elem_t* A, const elem_t* B,
+        const void * D, void * C,
+        size_t stride_A, size_t stride_B, size_t stride_D, size_t stride_C,
+        scale_t A_scale_factor, scale_t B_scale_factor, scale_acc_t D_scale_factor,
+        size_t tile_I, size_t tile_J, size_t tile_K,
+        int act, acc_scale_t scale, acc_scale_t bert_scale,
+        bool repeating_bias,
+        bool a_transpose, bool b_transpose,
+        bool full_C, bool low_D,
+        uint8_t weightA,
+        int dataflow) {
+
+  const size_t dim_I_padded = (dim_I / DIM + (dim_I % DIM != 0)) * DIM;
+  const size_t dim_J_padded = (dim_J / DIM + (dim_J % DIM != 0)) * DIM;
+  const size_t dim_K_padded = (dim_K / DIM + (dim_K % DIM != 0)) * DIM;
+
+  const size_t I0 = dim_I_padded / (tile_I*DIM) + (dim_I_padded % (tile_I*DIM) != 0);
+  const size_t J0 = dim_J_padded / (tile_J*DIM) + (dim_J_padded % (tile_J*DIM) != 0);
+  const size_t K0 = dim_K_padded / (tile_K*DIM) + (dim_K_padded % (tile_K*DIM) != 0);
+
+  // These lines here are supposed to help us deal with when the dimensions of
+  // the systolic array aren't divisible by the tiling factors
+  const size_t last_I = dim_I_padded % (tile_I*DIM) == 0 ? tile_I : (dim_I_padded/DIM) % tile_I;
+  const size_t last_J = dim_J_padded % (tile_J*DIM) == 0 ? tile_J : (dim_J_padded/DIM) % tile_J;
+  const size_t last_K = dim_K_padded % (tile_K*DIM) == 0 ? tile_K : (dim_K_padded/DIM) % tile_K;
+
+  // These lines are supposed to figure out how much padding the hardware is
+  // supposed to add for the final tile
+  const size_t padding_I = dim_I_padded - dim_I;
+  const size_t padding_J = dim_J_padded - dim_J;
+  const size_t padding_K = dim_K_padded - dim_K;
+
+  const bool no_bias = D == NULL;
+
+  if (no_bias) {
+    D = (void*) 1; // Dummy address which isn't NULL
+  }
+
+  const size_t sizeof_D = low_D ? sizeof(elem_t) : sizeof(acc_t) ;
+  const size_t sizeof_C = full_C ? sizeof(acc_t) : sizeof(elem_t);
+
+  gemmini_extended_config_ex(dataflow, act & 3, 0, 1, a_transpose, b_transpose);
+  gemmini_extended_config_st(stride_C * sizeof_C, act & 3, scale);
+  gemmini_extended3_config_ld(stride_A * sizeof(elem_t), A_scale_factor, false, 0);
+  gemmini_extended3_config_ld(stride_B * sizeof(elem_t), B_scale_factor, false, 1)
+  gemmini_extended3_config_ld(repeating_bias ? 0 : (stride_D * sizeof_D), D_scale_factor, low_D, 2);
+
+  if (act == IGELU) {
+    const acc_scale_t sqrt_2 = 1.41421356237;
+    const acc_scale_t S = bert_scale;
+    const acc_scale_t S_erf = (-0.2888 * ((S*S) / 2));
+
+    const acc_t qb = -1.769 / (S / sqrt_2);
+    const acc_t qc = 1.0 / S_erf;
+
+    gemmini_config_norm(0, 0, 0, 0, 0, qb, qc);
+  }
+
+  if (act == SOFTMAX) {
+    const scale_t a = 0.3585;
+    const scale_t b = 1.353;
+    const scale_t c = 0.344;
+
+    const acc_t qln2 = (int) (0.693147 / bert_scale);
+    const acc_t qln2_inv = 65536 / qln2;
+    const acc_t qb = b / bert_scale;
+    const acc_t qc = c / (a*bert_scale*bert_scale);
+
+    gemmini_config_norm(qln2, 0, 0, 1, 0, qb, qc);
+    gemmini_config_norm(qln2_inv, 1, 0, 1, 0, qb, qc);
+  }
+
+  // Create memref objects
+  TwoDMemrefI8_t memrefA;
+  memrefA.data = (int8_t*)A;
+  memrefA.aligned_data = memrefA.data;
+  memrefA.offset = 0;
+  memrefA.shape[0] = 128;
+  memrefA.shape[1] = 128;
+  memrefA.stride[0] = 1;
+  memrefA.stride[1] = 128;
+
+  TwoDMemrefI8_t memrefB;
+  memrefB.data = (int8_t*)B;
+  memrefB.aligned_data = memrefB.data;
+  memrefB.offset = 0;
+  memrefB.shape[0] = 128;
+  memrefB.shape[1] = 128;
+  memrefB.stride[0] = 1;
+  memrefB.stride[1] = 128;
+
+  TwoDMemrefI32_t memrefC;
+  memrefC.data = (int32_t *)C;
+  memrefC.aligned_data = memrefC.data;
+  memrefC.offset = 0;
+  memrefC.shape[0] = 128;
+  memrefC.shape[1] = 128;
+  memrefC.stride[0] = 1;
+  memrefC.stride[1] = 128;
+
+  _mlir_ciface_tiled_matmul(&memrefA, &memrefB, &memrefC);
+  gemmini_fence();
+}
+
+
+void _mlir_ciface_sp_tiled_matmul_ws(
+        TwoDMemrefI8_t* a, TwoDMemrefI8_t* b,
+        TwoDMemrefI32_t* c){
+
+  // Pass some variables to macro, but also hardcode some
+  
+  // Address calculation
+  int8_t* A = a->data + (a->offset);
+  int8_t* B = b->data + (b->offset);
+  int32_t* D = NULL;
+  int32_t* C = c->data + ((c->offset)/sizeof(int32_t));
+
+  // Divide memref size by 16
+  size_t I = (a->shape[0]) / 16; 
+  size_t J = (b->shape[1]) / 16; 
+  size_t K = (a->shape[1]) / 16; 
+
+  // No padding required in our examples
+  size_t pad_I = 0; 
+  size_t pad_J = 0; 
+  size_t pad_K = 0; 
+
+  // No bias used in our examples
+  bool no_bias = true;
+
+  // Set row strides
+  size_t A_row_stride = a->stride[0];
+  size_t B_row_stride = b->stride[0];
+  size_t D_row_stride = c->stride[0];
+  size_t C_row_stride = c->stride[0];
+
+  // Hardcode these settings for our examples
+  bool repeating_bias = false;
+  bool a_transpose = false;
+  bool b_transpose = false;
+  bool full_C = false;
+  bool low_D = false;
+  int act = 0;
+  int a_spad_id, b_spad_id = 0;
+  int is_resadd = 0;
+
+  gemmini_loop_ws(I, J, K, pad_I, pad_J, pad_K, A, B, no_bias ? NULL : D, C,
+    A_row_stride, B_row_stride, repeating_bias ? 0 : D_row_stride, C_row_stride,
+    a_transpose, b_transpose,
+    full_C, low_D, 0,
+    act,
+    a_spad_id, b_spad_id, is_resadd);
+}
+
+#endif // -DMLIR
 
 
 static acc_t int_sqrt(acc_t n) {
