@@ -191,8 +191,41 @@ static acc_scale_t_bits acc_scale_t_to_acc_scale_t_bits(acc_scale_t x) {
     return un.b;
 }
 
+uint64_t my_setup_calls = 0;
+uint64_t my_retired_instructions = 0;
+uint64_t retinst_accumulator = 0;
+
+
+static uint64_t read_instret() {
+    uint64_t instret;
+    asm volatile ("rdinstret %0" : "=r" (instret));
+    return instret;
+}
+
+
+#define TRACE_SETUP_BEGIN() \
+    { \
+        my_setup_calls++; \
+        retinst_accumulator = read_instret(); \
+    }
+
+#define TRACE_SETUP_END() \
+    { \
+        uint64_t instructions = read_instret(); \
+        my_retired_instructions += instructions - retinst_accumulator; \
+    }
+
+#define PRINT_SETUP() \
+{ \
+    printf("Setup Instructions taken: %u\n", my_retired_instructions); \
+    printf("ROCC Instructions taken: %u\n", my_setup_calls); \
+}
+
+
 #define ROCC_INSTRUCTION_RS1_RS2(x, rs1, rs2, funct) \
-  ROCC_INSTRUCTION_0_R_R(x, rs1, rs2, funct)
+  TRACE_SETUP_BEGIN() \
+  ROCC_INSTRUCTION_0_R_R(x, rs1, rs2, funct) \
+  TRACE_SETUP_END()
 
 // mvin and mvout
 #define gemmini_extended_mvin(dram_addr, spad_addr, cols, rows) \

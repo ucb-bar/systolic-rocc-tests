@@ -145,6 +145,7 @@ int main() {
 
     unsigned long end = read_cycles();
     printf("Cycles taken: %u\n", end-start);
+    PRINT_SETUP();
 
 
     printf("Starting slow CPU matmul\n");

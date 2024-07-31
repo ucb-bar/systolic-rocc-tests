@@ -160,6 +160,7 @@ int main() {
 
     unsigned long end = read_cycles();
     printf("Cycles taken: %u\n", end-start);
+    PRINT_SETUP();
 
 #if CHECK_RESULT == 1
     if (!full_is_equal(full_C, gold)) {
