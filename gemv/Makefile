@@ -1,32 +1,14 @@
 include $(abs_top_srcdir)/Makefrag
 
 tests = \
-	acquire_release \
-	multi_matmul_mac \
-	multi_conv_mac \
-	multi_matmul_data \
-	multi_conv_data \
-	tiled_matmul_ws_perf \
-	tiled_matmul_ws \
-    tiled_matmul_ws_rr \
-	tiled_matmul_data \
-	conv_pool_data \
-	conv_data \
-	conv_mac \
-	tiled_matmul_mac \
-	resadd_data \
-    mvin_mvout \
+	multi_gemv_matmul \
+	tiled_gemv \
+	tiled_gemv_matmul \
+	tiled_scale_matmul \
+	tiled_scale \
 
 tests_baremetal = $(tests:=-baremetal)
-
-ifeq ($(findstring spike,$(RUNNER)),spike)
-# Currently don't support conv or conv-with-pool on spike
-runs_baremetal = $(addsuffix .run,$(filter-out conv-baremetal conv_with_pool-baremetal,$(tests_baremetal)))
-else
-# Don't run very long benchmarks for RTL sim
-runs_baremetal = $(addsuffix .run,$(filter-out tiled_matmul_cpu-baremetal tiled_matmul_option-baremetal,$(tests_baremetal)))
-endif
-
+runs_baremetal = $(addsuffix .run,$(tests_baremetal))
 ifdef BAREMETAL_ONLY
 	tests_linux =
 	tests_pk =
@@ -36,7 +18,7 @@ else
 endif
 
 BENCH_COMMON = $(abs_top_srcdir)/riscv-tests/benchmarks/common
-GEMMINI_HEADERS = $(abs_top_srcdir)/include/gemmini.h $(abs_top_srcdir)/include/gemmini_params.h $(abs_top_srcdir)/include/gemmini_testutils.h
+GEMMINI_HEADERS = $(abs_top_srcdir)/include/gemmini.h $(abs_top_srcdir)/include/gemmini_params.h $(abs_top_srcdir)/include/gemmini_nn.h $(abs_top_srcdir)/include/gemmini_testutils.h
 
 CFLAGS := $(CFLAGS) \
 	-DPREALLOCATE=1 \
@@ -56,7 +38,6 @@ CFLAGS := $(CFLAGS) \
 	-I$(abs_top_srcdir) \
 	-I$(BENCH_COMMON) \
 	-DID_STRING=$(ID_STRING) \
-	-DPRINT_TILE=0 \
 
 CFLAGS_PK := \
 	$(CFLAGS) \
@@ -88,7 +69,7 @@ vpath %.c $(src_dir)
 run-baremetal: $(runs_baremetal)
 
 %-baremetal.run: %-baremetal
-	$(RUNNER)$(abs_top_srcdir)/build/bareMetalC/$^
+	$(RUNNER)$^
 
 junk += $(tests_baremetal) $(tests_linux) $(tests_pk)
 
