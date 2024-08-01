@@ -54,10 +54,10 @@ tests = \
     identity \
 	mvin_mvout_stride \
 	mvin_mvout_acc \
-	# matmul_ws_1\
-	# mvin_mvout_acc_stride \
-	# mvin_mvout_acc_full \
-	# mvin_mvout_acc_full_stride \
+	tiled_matmul_ws _FP32 \
+	mvin_mvout_acc_stride \
+	mvin_mvout_acc_full \
+	mvin_mvout_acc_full_stride \
 
 
 tests_baremetal = $(tests:=-baremetal)

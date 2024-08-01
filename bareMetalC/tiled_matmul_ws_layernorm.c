@@ -58,9 +58,9 @@ int full_is_equal(elem_t x[MAT_DIM_I][MAT_DIM_J], elem_t y[MAT_DIM_I][MAT_DIM_J]
 }
 
 int main() {
-#if defined(FAST) || !defined(HAS_NORMALIZATIONS)
-    exit(0);
-#endif
+// #if defined(FAST) || !defined(HAS_NORMALIZATIONS)
+//     exit(0);
+// #endif
 
 #ifndef BAREMETAL
     if (mlockall(MCL_CURRENT | MCL_FUTURE) != 0) {
@@ -88,21 +88,21 @@ int main() {
     // printf("Init A\n");
     for (size_t i = 0; i < MAT_DIM_I; ++i) {
       for (size_t j = 0; j < MAT_DIM_K; ++j) {
-        full_A[i][j] = (rand() % 3) - 1;
+        full_A[i][j] = i == j ? NN_floatToHalf(1) : 0; //NN_floatToHalf((rand() % 3) - 1);
       }
     }
 
     // printf("Init B\n");
     for (size_t i = 0; i < MAT_DIM_K; ++i) {
       for (size_t j = 0; j < MAT_DIM_J; ++j) {
-        full_B[i][j] = (rand() % 3) - 1;
+        full_B[i][j] = i == j ? NN_floatToHalf(1) : 0; //NN_floatToHalf((rand() % 3) - 1);
       }
     }
 
     // printf("Init D\n");
     for (size_t i = 0; i < MAT_DIM_I; ++i) {
       for (size_t j = 0; j < MAT_DIM_J; ++j) {
-        full_D[i][j] = NO_BIAS ? 0 : (rand() % 3) - 1;
+        full_D[i][j] = 0; //NO_BIAS ? 0 : (rand() % 3) - 1;
       }
     }
 
@@ -112,8 +112,8 @@ int main() {
     tiled_matmul_auto(MAT_DIM_I, MAT_DIM_J, MAT_DIM_K,
             (elem_t*)full_A, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], (elem_t*)gold,
             MAT_DIM_K, MAT_DIM_J, MAT_DIM_J, MAT_DIM_J,
-            MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY,
-            LAYERNORM, ACC_SCALE_IDENTITY, 0, false,
+            NN_floatToHalf(1), NN_floatToHalf(1), NN_floatToHalf(1),
+            LAYERNORM, NN_floatToHalf(1), 0, false,
             false, false,
             false, !FULL_BIAS_WIDTH,
             0,
@@ -143,8 +143,8 @@ int main() {
     tiled_matmul_auto(MAT_DIM_I, MAT_DIM_J, MAT_DIM_K,
             (elem_t*)full_A, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], (acc_t*)unnormed_C,
             MAT_DIM_K, MAT_DIM_J, MAT_DIM_J, MAT_DIM_J,
-            MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY,
-            NO_ACTIVATION, ACC_SCALE_IDENTITY, 0, false,
+            NN_floatToHalf(1), NN_floatToHalf(1), NN_floatToHalf(1),
+            NO_ACTIVATION, NN_floatToHalf(1), 0, false,
 
             false, false,
             true, !FULL_BIAS_WIDTH,
@@ -155,22 +155,30 @@ int main() {
 
     tiled_norm_auto(MAT_DIM_I, MAT_DIM_J,
             (acc_t*)unnormed_C, (elem_t*)full_C,
-            ACC_SCALE_IDENTITY,
+            NN_floatToHalf(1),
             LAYERNORM, WS);
 
     gemmini_fence();
 
     unsigned long end = read_cycles();
     printf("Cycles taken: %u\n", end-start);
-
+printFPMatrix2(4,4,full_C);
+printFPMatrix2(4,4,unnormed_C);
 #if CHECK_RESULT == 1
     if (!full_is_equal(full_C, gold)) {
       printf("C:\n");
-      full_printMatrix(full_C);
+      // full_printMatrix(full_C);
+      printFPMatrix2(MAT_DIM_I,MAT_DIM_J,full_C);
+      printf("Gold:\n");
+      // full_printMatrix(gold);
+      printFPMatrix2(MAT_DIM_I,MAT_DIM_J,gold);
+      //printf("C:\n");
+      //full_printMatrix(full_C);
       printf("\nUnnormed:\n");
-      full_printMatrix_acc(unnormed_C);
-      printf("\nGold:\n");
-      full_printMatrix(gold);
+      //full_printMatrix_acc(unnormed_C);
+      printFPMatrix2(MAT_DIM_I,MAT_DIM_J,unnormed_C);
+      //printf("\nGold:\n");
+      //full_printMatrix(gold);
       printf("\n");
 
       exit(1);

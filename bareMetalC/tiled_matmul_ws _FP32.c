@@ -21,25 +21,15 @@ typedef acc_t ACC_T;
 typedef elem_t ACC_T;
 #endif
 
-#ifdef FAST
-
-#define MAT_DIM_I 19
-#define MAT_DIM_K 18
-#define MAT_DIM_J 17
-
-#else
-
 #ifndef BAREMETAL
-#define MAT_DIM_I 500
-#define MAT_DIM_K 412
-#define MAT_DIM_J 300
+#define MAT_DIM_I 512
+#define MAT_DIM_K 512
+#define MAT_DIM_J 512
 #else
-#define MAT_DIM_I 60
-#define MAT_DIM_K 50
-#define MAT_DIM_J 30
+#define MAT_DIM_I 64
+#define MAT_DIM_K 64
+#define MAT_DIM_J 64
 #endif
-
-#endif // ifdef FAST
 
 void print_tile(elem_t* in, int tile_dim) {
   for (size_t r = 0; r < tile_dim; r++) {
@@ -51,12 +41,12 @@ void print_tile(elem_t* in, int tile_dim) {
   }
 }
 
-void full_matmul(elem_t A[MAT_DIM_K][MAT_DIM_I], elem_t B[MAT_DIM_K][MAT_DIM_J], ACC_T D[MAT_DIM_I][MAT_DIM_J], full_t C_full[MAT_DIM_I][MAT_DIM_J]) {
+void full_matmul(elem_t A[MAT_DIM_I][MAT_DIM_K], elem_t B[MAT_DIM_K][MAT_DIM_J], ACC_T D[MAT_DIM_I][MAT_DIM_J], full_t C_full[MAT_DIM_I][MAT_DIM_J]) {
   for (size_t r = 0; r < MAT_DIM_I; r++)
     for (size_t c = 0; c < MAT_DIM_J; c++) {
       C_full[r][c] = D[r][c];
       for (size_t k = 0; k < MAT_DIM_K; k++)
-        C_full[r][c] += NN_floatToHalf(NN_halfToFloat(C_full[r][c]) + NN_halfToFloat(A[k][r])*NN_halfToFloat(B[k][c]));
+        C_full[r][c] += A[r][k]*B[k][c];
     }
 }
 
@@ -100,9 +90,13 @@ int main() {
     }
 #endif
 
+    printf("MAT_DIM_I: %d\n", MAT_DIM_I);
+    printf("MAT_DIM_J: %d\n", MAT_DIM_J);
+    printf("MAT_DIM_K: %d\n", MAT_DIM_K);
+
     gemmini_flush(0);
 
-    static elem_t full_A[MAT_DIM_K][MAT_DIM_I] row_align(1);
+    static elem_t full_A[MAT_DIM_I][MAT_DIM_K] row_align(1);
     static elem_t full_B[MAT_DIM_K][MAT_DIM_J] row_align(1);
     static elem_t full_C[MAT_DIM_I][MAT_DIM_J] row_align(1);
     static ACC_T full_D[MAT_DIM_I][MAT_DIM_J] row_align_acc(1);
@@ -111,83 +105,71 @@ int main() {
     static elem_t gold[MAT_DIM_I][MAT_DIM_J];
 
 #if CHECK_RESULT == 1
-    // printf("Init A\n");
-    for (size_t i = 0; i < MAT_DIM_K; ++i) {
-      for (size_t j = 0; j < MAT_DIM_I; ++j) {
 #ifdef FAST
-        full_A[i][j] = 1;
+#define RAND 1
 #else
-        full_A[i][j] = i == j ? NN_floatToHalf(1) : 0; //RAND % 2;
+#define RAND rand()
 #endif
+    // printf("Init A\n");
+    for (size_t i = 0; i < MAT_DIM_I; ++i) {
+      for (size_t j = 0; j < MAT_DIM_K; ++j) {
+        full_A[i][j] = RAND % 2;
       }
     }
 
     // printf("Init B\n");
     for (size_t i = 0; i < MAT_DIM_K; ++i) {
       for (size_t j = 0; j < MAT_DIM_J; ++j) {
-#ifdef FAST
-        full_B[i][j] = 1;
-#else
-        full_B[i][j] = i == j ? NN_floatToHalf(1) : 0; //RAND % 2;
-#endif
+        full_B[i][j] = RAND % 2;
       }
     }
 
     // printf("Init D\n");
     for (size_t i = 0; i < MAT_DIM_I; ++i) {
       for (size_t j = 0; j < MAT_DIM_J; ++j) {
-#ifdef FAST
-        full_D[i][j] = NO_BIAS ? 0 : 1;
-#else
-        full_D[i][j] = 0; //NO_BIAS ? 0 : rand() % 2;
-#endif
+        full_D[i][j] = NO_BIAS ? 0 : RAND % 2;
       }
     }
-
-// #ifdef FAST
-//     for (size_t i = 0; i < MAT_DIM_I; ++i) {
-//       for (size_t j = 0; j < MAT_DIM_J; ++j) {
-//         gold[i][j] = MAT_DIM_K + !NO_BIAS;
-//       }
-//     }
-// #else
-//     printf("Starting slow CPU matmul\n");
-//     unsigned long cpu_start = read_cycles();
-//     full_matmul(full_A, full_B, full_D, gold_full);
-//     unsigned long cpu_end = read_cycles();
-//     printf("Cycles taken: %u\n", cpu_end-cpu_start);
-//     full_matscale(gold_full, gold, ACC_SCALE_IDENTITY);
-// #endif // #ifdef FAST
-
-#endif
-
     printf("Starting gemmini matmul\n");
     unsigned long start = read_cycles();
 
     tiled_matmul_auto(MAT_DIM_I, MAT_DIM_J, MAT_DIM_K,
             (elem_t*)full_A, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], (elem_t*)full_C,
-            MAT_DIM_I, MAT_DIM_J, MAT_DIM_J, MAT_DIM_J,
-            NN_floatToHalf(1), NN_floatToHalf(1), NN_floatToHalf(1),
-            NO_ACTIVATION, NN_floatToHalf(1), 0, false,
-            true, false,
+            MAT_DIM_K, MAT_DIM_J, MAT_DIM_J, MAT_DIM_J,
+            MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY,
+            NO_ACTIVATION, ACC_SCALE_IDENTITY, 0, false,
+            false, false,
             false, !FULL_BIAS_WIDTH,
             0,
             WS);
 
     unsigned long end = read_cycles();
     printf("Cycles taken: %u\n", end-start);
-printf("0x%x\n", full_C[0][0]);
-printf("0x%x\n", full_C[0][1]);
-printf("0x%x\n", full_C[1][0]);
-printf("0x%x\n", full_C[1][1]);
-//printFPMatrix2(MAT_DIM_I,MAT_DIM_J,full_C);
+
+
+    printf("Starting slow CPU matmul\n");
+    unsigned long cpu_start = read_cycles();
+#ifdef FAST
+    for (size_t i = 0; i < MAT_DIM_I; ++i) {
+      for (size_t j = 0; j < MAT_DIM_J; ++j) {
+        gold_full[i][j] = MAT_DIM_K + (NO_BIAS ? 0 : (RAND % 2));
+      }
+    }
+
+#else
+    full_matmul(full_A, full_B, full_D, gold_full);
+#endif
+    unsigned long cpu_end = read_cycles();
+    printf("Cycles taken: %u\n", cpu_end-cpu_start);
+    full_matscale(gold_full, gold, ACC_SCALE_IDENTITY);
+#endif
+
 #if CHECK_RESULT == 1
     if (!full_is_equal(full_C, gold)) {
       printf("C:\n");
-      printFPMatrix2(MAT_DIM_I,MAT_DIM_J,full_C);
+      full_printMatrix(full_C);
       printf("Gold:\n");
-      // full_printMatrix(gold);
-      printFPMatrix2(MAT_DIM_I,MAT_DIM_J,gold);
+      full_printMatrix(gold);
       printf("\n");
 
       exit(1);
