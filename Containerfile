@@ -25,3 +25,5 @@ RUN apt-get install -y lsb-release wget software-properties-common gnupg && \
     wget https://apt.llvm.org/llvm.sh && \
     chmod +x llvm.sh && \
     ./llvm.sh 17
+
+RUN apt-get install -y mlir-17-tools
