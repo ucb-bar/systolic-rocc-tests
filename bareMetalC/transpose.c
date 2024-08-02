@@ -28,7 +28,7 @@ int main() {
   elem_t Identity[DIM][DIM];
   for (size_t i = 0; i < DIM; i++)
     for (size_t j = 0; j < DIM; j++) {
-      In[i][j] = rand() % 10;
+      In[i][j] = i == j;
       Identity[i][j] = i == j;
     }
 
@@ -47,9 +47,9 @@ int main() {
   gemmini_mvin(Identity, Identity_sp_addr);
 
   printf("Multiply \"In\" matrix with \"Identity\" matrix with a bias of 0\n");
-  gemmini_extended_config_ex(OUTPUT_STATIONARY, 0, 0, 1, true, false)
-  gemmini_preload_zeros(Out_sp_addr);
-  gemmini_compute_preloaded(In_sp_addr, Identity_sp_addr);
+  gemmini_extended_config_ex(WEIGHT_STATIONARY, 0, 0, 1, true, false)
+  gemmini_preload(Identity_sp_addr, Out_sp_addr);
+  gemmini_compute_preloaded(In_sp_addr, GARBAGE_ADDR);
 
   printf("Move \"Out\" matrix from Gemmini's scratchpad into main memory\n");
   gemmini_config_st(DIM * sizeof(elem_t));
