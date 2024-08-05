@@ -9,7 +9,7 @@
 #include <sys/mman.h>
 #endif
 #include "include/gemmini_testutils.h"
-
+//#define FAST 1
 #define CHECK_RESULT 1
 
 #define NO_BIAS 1

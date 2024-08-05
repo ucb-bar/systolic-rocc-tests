@@ -55,6 +55,11 @@ tests = \
 	global_average \
 	gemmini_counter \
 	template \
+	tiled_matmul_ws_nullout \
+	tiled_matmul_ws_nullA \
+	tiled_matmul_ws_nullB \
+	tiled_matmul_ws_nullC \
+	tiled_matmul_ws_mvin_nullA \
 
 tests_baremetal = $(tests:=-baremetal)
 

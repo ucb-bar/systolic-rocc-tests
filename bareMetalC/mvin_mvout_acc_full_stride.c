@@ -9,7 +9,7 @@
 #include <sys/mman.h>
 #endif
 #include "include/gemmini_testutils.h"
-
+//#define FAST 1
 #ifdef FAST
 #define BIG_DIM (DIM*2)
 #define BINIT MIN(MAX_BLOCK_LEN_ACC, BIG_DIM/DIM)

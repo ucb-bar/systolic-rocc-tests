@@ -13,7 +13,7 @@
 
 
 #define MIN(a,b) ((a > b) ? b : a)
-
+//#define FAST 1
 #ifdef FAST
 #define BIG_DIM (DIM*2)
 #define BINIT MIN(MAX_BLOCK_LEN_ACC, BIG_DIM/DIM)

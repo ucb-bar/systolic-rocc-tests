@@ -9,7 +9,7 @@
 #include <sys/mman.h>
 #endif
 #include "include/gemmini_testutils.h"
-
+//#define FAST 1
 #ifdef FAST
 #define N 2
 #define AINIT RELU

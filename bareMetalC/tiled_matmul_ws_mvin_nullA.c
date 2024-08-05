@@ -27,9 +27,9 @@ typedef elem_t ACC_T;
 #define MAT_DIM_K 512
 #define MAT_DIM_J 512
 #else
-#define MAT_DIM_I 4
-#define MAT_DIM_K 4
-#define MAT_DIM_J 4
+#define MAT_DIM_I DIM
+#define MAT_DIM_K DIM
+#define MAT_DIM_J DIM
 #endif
 
 void print_tile(elem_t* in, int tile_dim) {
@@ -114,28 +114,30 @@ int main() {
     // printf("Init A\n");
     for (size_t i = 0; i < MAT_DIM_I; ++i) {
       for (size_t j = 0; j < MAT_DIM_K; ++j) {
-        full_A[i][j] = RAND % 2;
+        full_A[i][j] = RAND% 2;
       }
     }
-
+    printFPMatrix(full_A);
     // printf("Init B\n");
     for (size_t i = 0; i < MAT_DIM_K; ++i) {
       for (size_t j = 0; j < MAT_DIM_J; ++j) {
-        full_B[i][j] = RAND % 2;
+        full_B[i][j] = RAND% 2;
       }
     }
-
+    printFPMatrix(full_B);
     // printf("Init D\n");
     for (size_t i = 0; i < MAT_DIM_I; ++i) {
       for (size_t j = 0; j < MAT_DIM_J; ++j) {
-        full_D[i][j] = NO_BIAS ? 0 : RAND % 2;
+        full_D[i][j] = NO_BIAS ? 0 : RAND% 2;
       }
     }
     printf("Starting gemmini matmul\n");
     unsigned long start = read_cycles();
-
+    gemmini_config_ld(DIM * sizeof(elem_t));
+    gemmini_mvin(full_A,0);//it is seen from the waveform that A_addr is 0 but the spad_addr assignment still need to be validated
+    printf("moved in \n");
     tiled_matmul_auto(MAT_DIM_I, MAT_DIM_J, MAT_DIM_K,
-            (elem_t*)full_A, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], (elem_t*)full_C,
+            NULL, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], (elem_t*)full_C,
             MAT_DIM_K, MAT_DIM_J, MAT_DIM_J, MAT_DIM_J,
             MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY,
             NO_ACTIVATION, ACC_SCALE_IDENTITY, 0, false,
@@ -166,15 +168,17 @@ int main() {
 #endif
 
 #if CHECK_RESULT == 1
-    if (!full_is_equal(full_C, gold)) {
+    //if (!full_is_equal(full_C, gold)) {
       printf("C:\n");
-      full_printMatrix(full_C);
+      //full_printMatrix(full_C);
+      printFPMatrix(full_C);
       printf("Gold:\n");
-      full_printMatrix(gold);
+      //full_printMatrix(gold);
+      printFPMatrix(gold);
       printf("\n");
 
       exit(1);
-    }
+    //}
 #endif
 
   exit(0);

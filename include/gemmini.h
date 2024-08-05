@@ -86,6 +86,16 @@ elem_t_bits elem_t_to_elem_t_bits(elem_t x) {
     return un.b;
 }
 
+elem_t_bits elem_t_to_floats(elem_t x) {
+    union {
+        elem_t_bits b;
+        elem_t f;
+    } un;
+
+    un.f = x;
+    return un.f;
+}
+
 acc_t acc_t_bits_to_acc_t(acc_t_bits x) {
     union {
         acc_t_bits b;
@@ -346,6 +356,7 @@ int ceil_divide_int(int a, int b){
 }
 
 // weight-stationary matmul loop
+//config 
 #define gemmini_loop_ws(I, J, K, pad_I, pad_J, pad_K, A, B, D, C, A_stride, B_stride, D_stride, C_stride, A_transpose, B_transpose, full_C, low_D, ex_accumulate, act, a_spad_id, b_spad_id, is_resadd) \
   { \
     ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, ((uint64_t)(pad_K) << 32) | ((uint64_t)(pad_J) << 16) | (uint64_t)(pad_I), ((uint64_t)(K) << 32) | ((uint64_t)(J) << 16) | (uint64_t)(I), k_LOOP_WS_CONFIG_BOUNDS) \
@@ -356,7 +367,7 @@ int ceil_divide_int(int a, int b){
     ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, ((uint64_t)(a_spad_id) << 18) | ((uint64_t)(b_spad_id) << 16) | ((uint64_t)(act) << 8) | ((low_D) << 2) | ((full_C) << 1) | (ex_accumulate), ((is_resadd) << 2) | ((B_transpose) << 1) | (A_transpose), k_LOOP_WS) \
   }
 
-// weight-stationary conv loop
+// weight-stationary conv loop 
 #define gemmini_loop_conv_ws(batch_size, in_row_dim, in_col_dim, in_channels, out_channels, out_row_dim, out_col_dim, pool_out_row_dim, pool_out_col_dim, stride, padding, kernel_dim, kernel_dilation, pool_size, pool_stride, pool_padding, batches, porows, pocols, pochs, krows, kcols, kchs, lpad, rpad, upad, dpad, plpad, prpad, pupad, pdpad, orows, ocols, weights, output, bias, input, no_bias, no_pool, downsample, wrot180, input_dilated, activation, trans_output_1203, trans_weight_1203, trans_weight_0132, trans_input_3120, max_pixels_per_row, in_stride, weight_stride, out_stride, dw, a_spad_id, b_spad_id) \
   { \
     ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, ((uint64_t)(out_channels) << 48) | ((uint64_t)(in_channels) << 32) | ((uint64_t)(in_row_dim) << 16) | (uint64_t)(batch_size), \
@@ -1071,7 +1082,7 @@ static void matmul_cpu(bool transA, bool transB, size_t DIM_I, size_t DIM_J, siz
         for (size_t j = 0; j < DIM_J; j++) {
           if (c_buffer[j] > max_q) max_q = c_buffer[j];
         }
-
+        /*
         // pass 2: calculate iexp(q_tilde) and sum(q_tilde)
         acc_t sum_exp = 0;
         for (size_t j = 0; j < DIM_J; j++) {
@@ -1082,13 +1093,14 @@ static void matmul_cpu(bool transA, bool transB, size_t DIM_I, size_t DIM_J, siz
           c_buffer[j] = q_exp >> z;
           sum_exp += c_buffer[j];
         }
-
+        
         // pass 3: divide by sum
         scale_t factor = (127.f) / (float) sum_exp; // what corresponds to 1 in output?
         for (size_t j = 0; j < DIM_J; j++) {
           elem_t* c = C + (i * stride_C) + j;
           *c = scale_and_sat(c_buffer[j], act, factor, bert_scale);
         }
+        */ 
       }
     }
   }

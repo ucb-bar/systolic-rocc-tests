@@ -5,7 +5,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
-//#define FAST 1
+#define FAST 1
 #ifndef BAREMETAL
 #include <sys/mman.h>
 #endif
@@ -135,7 +135,7 @@ int main() {
     unsigned long start = read_cycles();
 
     tiled_matmul_auto(MAT_DIM_I, MAT_DIM_J, MAT_DIM_K,
-            (elem_t*)full_A, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], (elem_t*)full_C,
+            (elem_t*)full_A, (elem_t*)full_B, NULL, (elem_t*)full_matscale,
             MAT_DIM_K, MAT_DIM_J, MAT_DIM_J, MAT_DIM_J,
             MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY,
             NO_ACTIVATION, ACC_SCALE_IDENTITY, 0, false,

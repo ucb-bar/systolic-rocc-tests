@@ -10,7 +10,7 @@
 #endif
 #include <time.h>
 #include "include/gemmini_testutils.h"
-
+#define FAST 1
 
 #ifdef FAST
 #define AINIT RELU

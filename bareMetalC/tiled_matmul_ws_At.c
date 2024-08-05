@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
+//#define FAST 1
 #ifndef BAREMETAL
 #include <sys/mman.h>
 #endif

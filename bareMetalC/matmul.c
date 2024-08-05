@@ -13,7 +13,7 @@
 #include "include/gemmini_testutils.h"
 
 static elem_t ZERO[DIM][DIM];
-
+//#define FAST 1
 #ifdef FAST
 #define AINIT RELU
 #define SINIT 4

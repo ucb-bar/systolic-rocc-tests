@@ -10,7 +10,7 @@
 #include <sys/mman.h>
 #endif
 #include "include/gemmini_testutils.h"
-
+//#define FAST 1
 #ifndef BAREMETAL
 
 #define BATCH_SIZE 4
