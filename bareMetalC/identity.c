@@ -38,7 +38,8 @@ int main() {
   //printf("  Note: The scratchpad is \"row-addressed\", where each address contains one matrix row\n");
   size_t In_sp_addr = 0;
   size_t Out_sp_addr = DIM;
-  size_t Identity_sp_addr = 2*DIM;
+  int Out_acc_addr = (1 << ADDR_LEN - 1);
+  size_t Identity_sp_addr = DIM;
 
   printf("Move \"In\" matrix from main memory into Gemmini's scratchpad\n");
   gemmini_config_ld(DIM * sizeof(elem_t));

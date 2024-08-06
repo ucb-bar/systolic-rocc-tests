@@ -11,7 +11,6 @@
 #include <time.h>
 #include "include/gemmini_testutils.h"
 
-
 #ifdef FAST
 #define AINIT RELU
 #define SINIT 12
