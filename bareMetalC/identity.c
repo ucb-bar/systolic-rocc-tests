@@ -57,7 +57,7 @@ int main() {
   gemmini_compute_preloaded(In_sp_addr, GARBAGE_ADDR);
 
   printf("Move \"Out\" matrix from Gemmini's scratchpad into main memory\n");
-  gemmini_mvout(Out, acc_addr)
+  gemmini_mvout(Out, Out_sp_addr)
   printf("Fence till Gemmini completes all memory operations\n");
   gemmini_fence();
 

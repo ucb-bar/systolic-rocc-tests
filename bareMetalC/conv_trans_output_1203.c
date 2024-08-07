@@ -7,6 +7,7 @@
 #include <sys/mman.h>
 #endif
 #include "include/gemmini_testutils.h"
+#define FAST
 
 #ifndef BAREMETAL
 

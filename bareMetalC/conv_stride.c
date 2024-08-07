@@ -18,7 +18,7 @@
 #define KERNEL_DIM 3
 #define PADDING 1
 #define STRIDE 2
-
+#define FAST
 #else
 
 #define IN_ROW_DIM 7
