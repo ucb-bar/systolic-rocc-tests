@@ -45,8 +45,8 @@ int main() {
 
   printf("Move \"In\" matrix from main memory into Gemmini's scratchpad\n");
   //gemmini_config_ld(DIM * sizeof(elem_t));
-  gemmini_extended_config_ld(DIM * sizeof(elem_t),NN_floatToHalf(1.0));
-  //gemmini_config_st(DIM * sizeof(elem_t));
+  //gemmini_extended_config_ld(DIM * sizeof(elem_t),NN_floatToHalf(1.0));
+  gemmini_config_ld(DIM * sizeof(elem_t));
   gemmini_extended_config_st(DIM * sizeof(elem_t), NO_ACTIVATION, NN_floatToHalf(1.0));
   gemmini_mvin(In, In_sp_addr);
 
@@ -55,11 +55,11 @@ int main() {
 
   printf("Multiply \"In\" matrix with \"Identity\" matrix with a bias of 0\n");
   gemmini_config_ex(WEIGHT_STATIONARY, NO_ACTIVATION, 0);
-  gemmini_preload(Identity_sp_addr, Out_sp_addr);
+  gemmini_preload(Identity_sp_addr, acc_addr);
   gemmini_compute_preloaded(In_sp_addr, GARBAGE_ADDR);
 
   printf("Move \"Out\" matrix from Gemmini's scratchpad into main memory\n");
-  gemmini_mvout(Out, Out_sp_addr)
+  gemmini_mvout(Out, acc_addr)
   printf("Fence till Gemmini completes all memory operations\n");
   gemmini_fence();
 

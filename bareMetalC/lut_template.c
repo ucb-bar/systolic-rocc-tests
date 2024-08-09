@@ -30,22 +30,24 @@ int main() {
 
   for (size_t i = 0; i < DIM; i++)
     for (size_t j = 0; j < DIM; j++)
-      In[i][j] = i;
+      In[i][j] = NN_floatToHalf(i);
 
   elem_t Identity[DIM][DIM];
   for (size_t i = 0; i < DIM; i++)
     for (size_t j = 0; j < DIM; j++)
-      Identity[i][j] = i == j;
+      Identity[i][j] = NN_floatToHalf(i == j);
 
   printf("Calculate the scratchpad addresses of all our matrices\n");
   printf("  Note: The scratchpad is \"row-addressed\", where each address contains one matrix row\n");
   size_t In_sp_addr = 0;
   size_t Out_sp_addr = DIM;
   size_t Identity_sp_addr = 2*DIM;
+  const uint32_t acc_addr = 1 << (ADDR_LEN-1);
 
   printf("Move \"In\" matrix from main memory into Gemmini's scratchpad\n");
   gemmini_config_ld(DIM * sizeof(elem_t));
-  gemmini_config_st(DIM * sizeof(elem_t));
+  gemmini_extended_config_st(DIM * sizeof(elem_t), NO_ACTIVATION, NN_floatToHalf(1.0));
+  //gemmini_config_st(DIM * sizeof(elem_t));
   gemmini_mvin(In, In_sp_addr);
 
   printf("Move \"Identity\" matrix from main memory into Gemmini's scratchpad\n");
@@ -56,11 +58,11 @@ int main() {
 
   printf("Multiply \"In\" matrix with \"Identity\" matrix with a bias of 0\n");
   gemmini_config_ex(WEIGHT_STATIONARY, 0, 0);
-  gemmini_preload(Identity_sp_addr, Out_sp_addr);
+  gemmini_preload(Identity_sp_addr, acc_addr);
   gemmini_compute_preloaded(In_sp_addr, GARBAGE_ADDR);
 
   printf("Move \"Out\" matrix from Gemmini's scratchpad into main memory\n");
-  gemmini_mvout(Out, Out_sp_addr);
+  gemmini_mvout(Out, acc_addr);
 
   printf("Fence till Gemmini completes all memory operations\n");
   gemmini_fence();
