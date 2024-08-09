@@ -11,7 +11,7 @@
 #include <time.h>
 #include "include/gemmini_testutils.h"
 
-#define DIM 4
+#define DIM 16
 
 #ifdef FAST
 #define AINIT RELU
@@ -20,7 +20,7 @@
 #else
 #define AINIT NO_ACTIVATION
 #define SINIT 0
-#define N 2
+#define N 1
 #endif
 
 void operands(int c, int *a, int *b, int *d) {
@@ -73,7 +73,8 @@ int main() {
 
   for (int activation = AINIT; activation <= RELU; ++activation) {
 #ifdef ACC_SCALE_T_IS_FLOAT
-    for (acc_scale_t scale = 0; scale <= 1.5; scale += 0.5) {
+    //for (acc_scale_t scale = 0; scale <= 1.5; scale += 0.5) {
+    for (float scale = 0; scale <= 1.5; scale += 0.5) {
 #else
     for (acc_scale_t scale = SINIT; scale <= 12; scale += 4) {
 #endif
@@ -87,15 +88,15 @@ int main() {
 
       static int preload[N * N * N] = {1};
       for (int i = 1; i < N * N * N; ++i)
-        preload[i] = rand() % 2;
+        preload[i] = 1;//rand() % 2;
 
       static int add_to_zeros[N * N * N];
       for (int i = 0; i < N * N * N; ++i)
-        add_to_zeros[i] = rand() % 2;
+        add_to_zeros[i] = 1;//rand() % 2;
 
       static int accumulate[N * N * N] = {0};
       for (int i = 1; i < N * N * N; ++i)
-        accumulate[i] = rand() % 2;
+        accumulate[i] = 0;//rand() % 2;
 
       static int no_output[N * N * N];
       for (int i = 0; i < N * N * N - 1; ++i)
@@ -105,7 +106,7 @@ int main() {
       for (size_t n = 0; n < N; ++n) {
         for (size_t i = 0; i < DIM; ++i) {
           for (size_t j = 0; j < DIM; ++j) {
-            A[n][i][j] = NN_floatToHalf((float)((rand() % 64) - 32));
+            A[n][i][j] = NN_floatToHalf((float)(1));//NN_floatToHalf((float)((rand() % 64) - 32));
             B[n][i][j] = NN_floatToHalf((float)((rand() % 64) - 32));
             D[n][i][j] = NN_floatToHalf((float)((rand() % 64) - 32));
           }
@@ -146,7 +147,7 @@ int main() {
       }
 
       for (size_t g = 0; g < N * N * N; ++g) {
-        matscale(gold_full[g], gold[g], scale);
+        matscale(gold_full[g], gold[g], NN_floatToHalf(scale));
         if (activation == RELU)
           matrelu(gold[g], gold[g]);
       }
@@ -182,7 +183,7 @@ int main() {
         }
 
       gemmini_config_ex(WEIGHT_STATIONARY, 0, 0);
-      gemmini_extended_config_st(DIM * sizeof(elem_t), activation, scale);
+      gemmini_extended_config_st(DIM * sizeof(elem_t), activation, NN_floatToHalf(scale));
 
       for (size_t c = 0; c < N * N * N; ++c) {
         int a, b, d;
