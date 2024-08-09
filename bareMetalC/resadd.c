@@ -64,8 +64,8 @@ int main() {
     // printf("Init A and B\n");
     for (size_t i = 0; i < MAT_DIM_I; ++i) {
       for (size_t j = 0; j < MAT_DIM_J; ++j) {
-        A[i][j] = NN_floatToHalf((rand() % 64) - 32);
-        B[i][j] = NN_floatToHalf((rand() % 8) - 4);
+        A[i][j] = NN_floatToHalf((rand() % 64) - 32.0);
+        B[i][j] = NN_floatToHalf((rand() % 8) - 4.0);
       }
     }
 
