@@ -5,6 +5,9 @@ tests = \
 	mvin_mvout_zeros \
 	mvin_mvout_block_stride \
 	mvin_mvout_acc_zero_stride \
+	mvin_mvout_acc_full \
+	mvin_mvout_acc_full_stride \
+	mvin_mvout_acc_stride \
 	matmul_os \
 	matmul_ws \
 	matmul \
@@ -54,7 +57,7 @@ tests = \
     identity \
 	mvin_mvout_stride \
 	mvin_mvout_acc \
-	tiled_matmul_ws _FP32 \
+	tiled_matmul_ws \
 	mvin_mvout_acc_stride \
 	mvin_mvout_acc_full \
 	mvin_mvout_acc_full_stride \

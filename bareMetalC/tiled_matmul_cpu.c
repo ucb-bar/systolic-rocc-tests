@@ -137,8 +137,8 @@ int main() {
     tiled_matmul_auto(MAT_DIM_I, MAT_DIM_J, MAT_DIM_K,
             (elem_t*)full_A, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], (elem_t*)full_C,
             MAT_DIM_K, MAT_DIM_J, MAT_DIM_J, MAT_DIM_J,
-            MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY,
-            NO_ACTIVATION, ACC_SCALE_IDENTITY, 0, false,
+            NN_floatToHalf(1), NN_floatToHalf(1), NN_floatToHalf(1),
+            NO_ACTIVATION, NN_floatToHalf(1), 0, false,
             false, false,
             false, false,
             0,
@@ -150,9 +150,11 @@ int main() {
 #if CHECK_RESULT == 1
     if (!full_is_equal(full_C, gold)) {
       printf("C:\n");
-      full_printMatrix(full_C);
+      // full_printMatrix(full_C);
+      printFPMatrix2(MAT_DIM_I,MAT_DIM_J,full_C);
       printf("Gold:\n");
-      full_printMatrix(gold);
+      // full_printMatrix(gold);
+      printFPMatrix2(MAT_DIM_I,MAT_DIM_J,gold);
       printf("\n");
 
       exit(1);

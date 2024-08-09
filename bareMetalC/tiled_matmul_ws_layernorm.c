@@ -106,21 +106,21 @@ int main() {
       }
     }
 
-    printf("Starting slow CPU matmul\n");
-    unsigned long cpu_start = read_cycles();
+    // printf("Starting slow CPU matmul\n");
+    // unsigned long cpu_start = read_cycles();
 
-    tiled_matmul_auto(MAT_DIM_I, MAT_DIM_J, MAT_DIM_K,
-            (elem_t*)full_A, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], (elem_t*)gold,
-            MAT_DIM_K, MAT_DIM_J, MAT_DIM_J, MAT_DIM_J,
-            NN_floatToHalf(1), NN_floatToHalf(1), NN_floatToHalf(1),
-            LAYERNORM, NN_floatToHalf(1), 0, false,
-            false, false,
-            false, !FULL_BIAS_WIDTH,
-            0,
-            CPU);
+    // tiled_matmul_auto(MAT_DIM_I, MAT_DIM_J, MAT_DIM_K,
+    //         (elem_t*)full_A, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], (elem_t*)gold,
+    //         MAT_DIM_K, MAT_DIM_J, MAT_DIM_J, MAT_DIM_J,
+    //         NN_floatToHalf(1), NN_floatToHalf(1), NN_floatToHalf(1),
+    //         LAYERNORM, NN_floatToHalf(1), 0, false,
+    //         false, false,
+    //         false, !FULL_BIAS_WIDTH,
+    //         0,
+    //         CPU);
 
-    unsigned long cpu_end = read_cycles();
-    printf("Cycles taken: %u\n", cpu_end-cpu_start);
+    // unsigned long cpu_end = read_cycles();
+    // printf("Cycles taken: %u\n", cpu_end-cpu_start);
 
 #endif
 

@@ -12,6 +12,7 @@
 
 
 #define N 4
+#define ACC_READ_FULL_WIDTH 
 
 #if (N*DIM) > ACC_ROWS
 #error not enough accumulator space

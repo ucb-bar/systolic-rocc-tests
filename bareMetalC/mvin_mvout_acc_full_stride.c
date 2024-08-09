@@ -65,7 +65,7 @@ void printMatrix_acc_big(acc_t m[BIG_DIM][BIG_DIM]) {
 }
 
 int main() {
-#ifdef ACC_READ_FULL_WIDTH
+//#ifdef ACC_READ_FULL_WIDTH
 
 #ifndef BAREMETAL
     if (mlockall(MCL_CURRENT | MCL_FUTURE) != 0) {
@@ -171,7 +171,7 @@ int main() {
     }
   }
 
-#endif // #ifdef ACC_READ_FULL_WIDTH
+//#endif // #ifdef ACC_READ_FULL_WIDTH
 
   exit(0);
 }
