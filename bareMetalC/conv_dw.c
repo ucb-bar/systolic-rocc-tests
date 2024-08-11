@@ -437,7 +437,7 @@ int main() {
     }
 #else
     //bool success = vec_is_equal(&output[0][0][0][0], &output_mat[0][0][0][0], sizeof(output) / sizeof(elem_t));
-     static float output_fp32[BATCH_SIZE][OUT_ROW_DIM][OUT_COL_DIM][CHANNELS];
+    static float output_fp32[BATCH_SIZE][OUT_ROW_DIM][OUT_COL_DIM][CHANNELS];
     static float output_mat_fp32[BATCH_SIZE][OUT_ROW_DIM][OUT_COL_DIM][CHANNELS];
 
     for (int i = 0; i < sizeof(output) / sizeof(elem_t); i++) {

@@ -321,10 +321,10 @@ int main() {
     static float output_mat_fp32[N_PATCHES][OUT_CHANNELS];
 
     for (int i = 0; i < sizeof(output) / sizeof(elem_t); i++) {
-        ((float *)output_fp32)[i] = NN_halfToFloat(((elem_t *)output)[i]);
+        ((float *)output_fp32)[i] = NN_halfToFloat(((elem_t *)pool_output)[i]);
     }
     for (int i = 0; i < sizeof(output_mat) / sizeof(elem_t); i++) {
-        ((float *)output_mat_fp32)[i] = NN_halfToFloat(((elem_t *)output_mat)[i]);
+        ((float *)output_mat_fp32)[i] = NN_halfToFloat(((elem_t *)pool_output_mat)[i]);
     }
 
     bool success = vec_is_equal_fp32(&output_fp32[0][0][0][0], &output_mat_fp32[0][0], sizeof(output_fp32) / sizeof(float), 1e-6);

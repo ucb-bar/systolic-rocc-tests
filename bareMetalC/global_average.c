@@ -24,7 +24,7 @@
 
 void init_random(elem_t * buf, int len) {
   for (int i = 0; i < len; i++) {
-    buf[i] = rand() % 10;
+    buf[i] = NN_floatToHalf(rand() % 10);
   }
 }
 
@@ -70,21 +70,21 @@ int main() {
     }
 
     printf("Output:\n");
-    for (int b = 0; b < BATCHES; b++) {
-      for (int ch = 0; ch < CHANNELS; ch++) {
-        printf("%d ", output[b][ch]);
-      }
-      printf("\n");
-    }
-
+    // for (int b = 0; b < BATCHES; b++) {
+    //   for (int ch = 0; ch < CHANNELS; ch++) {
+    //     printf("%d ", output[b][ch]);
+    //   }
+    //   printf("\n");
+    // }
+    printFPMatrix2(BATCHES, CHANNELS, (elem_t*)output);
     printf("Gold:\n");
-    for (int b = 0; b < BATCHES; b++) {
-      for (int ch = 0; ch < CHANNELS; ch++) {
-        printf("%d ", gold[b][ch]);
-      }
-      printf("\n");
-    }
-
+    // for (int b = 0; b < BATCHES; b++) {
+    //   for (int ch = 0; ch < CHANNELS; ch++) {
+    //     printf("%d ", gold[b][ch]);
+    //   }
+    //   printf("\n");
+    // }
+    printFPMatrix2(BATCHES, CHANNELS, (elem_t*)gold);
     exit(1);
   }
 
