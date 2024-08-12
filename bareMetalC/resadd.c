@@ -10,7 +10,7 @@
 #endif
 #include "include/gemmini_testutils.h"
 
-#define CHECK_RESULT 0 // 1
+#define CHECK_RESULT  1
 
 #ifndef BAREMETAL
 
@@ -71,36 +71,76 @@ int main() {
 
     printf("Starting slow CPU resadd\n");
     unsigned long cpu_start = read_cycles();
-    resadd_cpu(MAT_DIM_I, MAT_DIM_J, A_SCALE, B_SCALE, C_SCALE, (elem_t*)A, (elem_t*)B,
-            (elem_t*)gold, USE_RELU);
+    resadd_cpu(MAT_DIM_I, MAT_DIM_J, MAT_DIM_J, A_SCALE, B_SCALE, C_SCALE, (elem_t*)A, (elem_t*)B, (elem_t*)gold, USE_RELU);
     unsigned long cpu_end = read_cycles();
     printf("Cycles taken: %u\n", cpu_end-cpu_start);
 #endif
 
     printf("Starting gemmini resadd\n");
     unsigned long start = read_cycles();
-    tiled_resadd_auto(MAT_DIM_I, MAT_DIM_J, A_SCALE, B_SCALE, C_SCALE, (elem_t*)A, (elem_t*)B,
+    tiled_resadd_auto(MAT_DIM_I, MAT_DIM_J, NN_floatToHalf(A_SCALE), NN_floatToHalf(B_SCALE), NN_floatToHalf(C_SCALE), (elem_t*)A, (elem_t*)B,
             (elem_t*)C, USE_RELU, WS);
     unsigned long end = read_cycles();
     printf("Cycles taken: %u\n", end-start);
 
+    printf("C:\n");
+    printf("0x%x\n", C[0][0]);
+    printf("0x%x\n", C[0][1]);
+    printf("0x%x\n", C[0][2]);
+    printf("0x%x\n", C[0][3]);
+    printf("0x%x\n", C[1][0]);
+    printf("0x%x\n", C[1][1]);
+    printf("0x%x\n", C[1][2]);
+    printf("0x%x\n", C[1][3]);
+
+    NN_printFloat(NN_halfToFloat(C[0][0]),5);
+    NN_printFloat(NN_halfToFloat(C[0][1]),5);
+    NN_printFloat(NN_halfToFloat(C[0][2]),5);
+    NN_printFloat(NN_halfToFloat(C[0][3]),5);
+    NN_printFloat(NN_halfToFloat(C[1][0]),5);
+    NN_printFloat(NN_halfToFloat(C[1][1]),5);
+    NN_printFloat(NN_halfToFloat(C[1][2]),5);
+    NN_printFloat(NN_halfToFloat(C[1][3]),5);
+
+    printf("gold:\n");
+    printf("0x%x\n", gold[0][0]);
+    printf("0x%x\n", gold[0][1]);
+    printf("0x%x\n", gold[0][2]);
+    printf("0x%x\n", gold[0][3]);
+    printf("0x%x\n", gold[1][0]);
+    printf("0x%x\n", gold[1][1]);
+    printf("0x%x\n", gold[1][2]);
+    printf("0x%x\n", gold[1][3]);
+
+    NN_printFloat(NN_halfToFloat(gold[0][0]),5);
+    NN_printFloat(NN_halfToFloat(gold[0][1]),5);
+    NN_printFloat(NN_halfToFloat(gold[0][2]),5);
+    NN_printFloat(NN_halfToFloat(gold[0][3]),5);
+    NN_printFloat(NN_halfToFloat(gold[1][0]),5);
+    NN_printFloat(NN_halfToFloat(gold[1][1]),5);
+    NN_printFloat(NN_halfToFloat(gold[1][2]),5);
+    NN_printFloat(NN_halfToFloat(gold[1][3]),5);
+    
 #if CHECK_RESULT == 1
     if (!full_is_equal(C, gold)) {
       printf("C:\n");
-      full_printMatrix(C);
+      //full_printMatrix(C);
+      printFPMatrix2(2,MAT_DIM_J,C);
       printf("Gold:\n");
-      full_printMatrix(gold);
+      //full_printMatrix(gold);
+      printFPMatrix2(2,MAT_DIM_J,gold);
       printf("A:\n");
-      full_printMatrix(A);
+      //full_printMatrix(A);
+      printFPMatrix2(2,MAT_DIM_J,A);
       printf("B:\n");
-      full_printMatrix(B);
+      //full_printMatrix(B);
+      printFPMatrix2(2,MAT_DIM_J,B);
       printf("\n");
 
       exit(1);
     }
 #endif
-  printf("pass");
-
+  printf("Pass\n");
   exit(0);
 }
 
