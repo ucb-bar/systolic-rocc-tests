@@ -22,6 +22,12 @@
 // Counter Definition
 #include "include/gemmini_counter.h"
 
+#ifndef EXPOSE_TOP_LEVEL_FNS
+#define _STATIC static
+#else
+#define _STATIC
+#endif
+
 #define k_CONFIG 0
 #define k_MVIN2 1
 #define k_MVIN 2
@@ -340,7 +346,7 @@ static void counter_reset() {
 }
 
 static int ceil_divide_int(int a, int b){
-    int c = (a % b == 0) ? ((int)(a/b)) :(((int)(a/b)) + 1); 
+    int c = (a % b == 0) ? ((int)(a/b)) :(((int)(a/b)) + 1);
     if(a < b) c = 1;
     return c;
 }
@@ -1230,7 +1236,7 @@ static size_t tiled_matmul_total_acc_rows(size_t I, size_t J) {
 
 // This function runs a tiled matrix multiplication, with automatically
 // calculated tiling factors
-static void tiled_matmul_auto(size_t dim_I, size_t dim_J, size_t dim_K,
+_STATIC void tiled_matmul_auto(size_t dim_I, size_t dim_J, size_t dim_K,
         const elem_t* A, const elem_t* B,
         const void * D, void * C,
         size_t stride_A, size_t stride_B, size_t stride_D, size_t stride_C,
@@ -1754,7 +1760,7 @@ static void sp_tiled_conv(
 <<<<<<< HEAD
       */
 //    }
-//  } 
+//  }
   //  }
   //}
 }
@@ -2314,7 +2320,7 @@ static void tiled_conv(
 
 //    printf("num_kch: %d, num_poch: %d, num_b: %d, num_porow: %d, num_pocol: %d, num_krow: %d, num_kcol: %d\n", num_kch, num_poch, num_b, num_porow, num_pocol, num_krow, num_kcol);
 
-    if(num_kch * num_poch * num_krow * num_kcol <= 2) 
+    if(num_kch * num_poch * num_krow * num_kcol <= 2)
       b_reuse = true;
     if(num_kch * num_krow * num_kcol * num_b * num_porow * num_pocol <= 2)
       a_reuse = true;
@@ -2413,7 +2419,7 @@ static void tiled_conv(
                                 if(b_reuse && (pocol + (porow - porow_start) + b > 0)) weights_slice = NULL;
 							    if(a_reuse && (poch > 0)) in = NULL;
                                 //printf("a_reuse: %d, b_reuse: %d, a_spad_id: %d, b_spad_id: %d, in: %llu, weight: %llu \n", a_reuse, b_reuse, a_spad_id, b_spad_id, in, weights_slice);
- 
+
                                 sp_tiled_conv(
                                     batch_size, in_row_dim, in_col_dim, in_channels,
                                     out_channels, out_row_dim, out_col_dim,
@@ -2833,10 +2839,10 @@ static void tiled_conv_stride_auto(
 }
 
 
-static void tiled_conv_auto(
+_STATIC void tiled_conv_auto(
         int batch_size, int in_row_dim, int in_col_dim, int in_channels,
         int out_channels, int out_row_dim, int out_col_dim,
-        int stride, int input_dilation, int kernel_dilation, int padding, int kernel_dim, 
+        int stride, int input_dilation, int kernel_dilation, int padding, int kernel_dim,
         bool wrot180, bool trans_output_1203, bool trans_input_3120,
         bool trans_weight_1203, bool trans_weight_0132,
 
@@ -2860,7 +2866,7 @@ static void tiled_conv_auto(
         in_stride, weight_stride, out_stride,
         wrot180, trans_output_1203, trans_input_3120,
         trans_weight_1203, trans_weight_0132,
-        
+
         input, weights, bias, output,
 
         act, scale, pool_size, pool_stride, pool_padding,
@@ -2922,7 +2928,7 @@ static void tiled_conv_downsample(
 }
 
 //for mobilenet's depthwise convs
-static void tiled_conv_dw_auto(
+_STATIC void tiled_conv_dw_auto(
     int batch_size, int in_row_dim, int in_col_dim,
     int channels, int out_row_dim, int out_col_dim,
     int stride, int padding, int kernel_dim,
@@ -3267,7 +3273,7 @@ static void tiled_resadd_stride_auto(const size_t I, const size_t J,
     while (total_acc_rows > ACC_ROWS / 2) {
         //if(tile_J > MAX_BLOCK_LEN * DIM)
         //    tile_J = MAX_BLOCK_LEN * DIM;
-        //else 
+        //else
         if (tile_I >= tile_J || tile_J <= DIM)
             tile_I /= 2;
         else
@@ -3290,7 +3296,7 @@ static void tiled_resadd_stride_auto(const size_t I, const size_t J,
     }
 }
 
-static void tiled_resadd_auto(const size_t I, const size_t J,
+_STATIC void tiled_resadd_auto(const size_t I, const size_t J,
         const scale_t A_scale,
         const scale_t B_scale,
         const acc_scale_t C_scale,
@@ -3299,7 +3305,7 @@ static void tiled_resadd_auto(const size_t I, const size_t J,
         elem_t * C,
         bool relu,
         enum tiled_matmul_type_t matadd_type) {
-    tiled_resadd_stride_auto(I, J, 
+    tiled_resadd_stride_auto(I, J,
         A_scale, B_scale, C_scale,
         J,
         A, B, C,
@@ -3555,7 +3561,7 @@ static void tiled_norm(const size_t I, const size_t J,
     gemmini_fence();
 }
 
-static void tiled_norm_auto(const size_t I, const size_t J,
+_STATIC void tiled_norm_auto(const size_t I, const size_t J,
         const acc_t * in,
         elem_t * out,
         const acc_scale_t C_scale,
