@@ -139,11 +139,23 @@ bool vec_is_equal(elem_t * a, elem_t * b, int len) {
 }
 
 
-void init_random(elem_t * buf, int len) {
-    for (elem_t * ptr = buf; ptr < buf + len; ptr++) {
-        *ptr = NN_floatToHalf((rand() % 5) - 2.0);
+// void init_random(elem_t * buf, int len) {
+//     for (elem_t * ptr = buf; ptr < buf + len; ptr++) {
+//         *ptr = NN_floatToHalf((rand() % 5) - 2.0);
+//     }
+// }
+
+
+void init_random(elem_t * buf, int row, int col, int stride){
+    elem_t i = 0;
+    for(int r = 0; r < row; r++){
+        for(int c = 0; c < col; c++){
+            elem_t * ptr = buf + r * stride + c;
+            *ptr = NN_floatToHalf((rand() % 5) - 2.0);
+        }
     }
 }
+
 
 void init_random_acc(acc_t * buf, int len) {
     for (acc_t * ptr = buf; ptr < buf + len; ptr++) {
@@ -176,10 +188,10 @@ int main() {
     static elem_t output[BATCH_SIZE][OUT_ROW_DIM][OUT_COL_DIM][OUT_STRIDE];
 
     printf("Randomize inputs...\n");
-    init_random(&input[0][0][0][0], BATCH_SIZE*IN_ROW_DIM*IN_COL_DIM);
+    init_random(&input[0][0][0][0], BATCH_SIZE*IN_ROW_DIM*IN_COL_DIM, IN_CHANNELS, IN_STRIDE);
 
     printf("Randomize weights...\n");
-    init_random(&weights[0][0][0][0], OUT_CHANNELS*KERNEL_DIM*KERNEL_DIM);
+    init_random(&weights[0][0][0][0], OUT_CHANNELS*KERNEL_DIM*KERNEL_DIM,IN_CHANNELS, IN_CHANNELS);
 
     printf("Randomize bias...\n");
     if (NO_BIAS)

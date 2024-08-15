@@ -2,7 +2,7 @@
 
 #ifndef SRC_MAIN_C_GEMMINI_H
 #define SRC_MAIN_C_GEMMINI_H
-
+#define PRINT_TILE 1
 #undef abs
 
 #include <stdint.h>
@@ -69,6 +69,7 @@
 #define SOFTMAX 4
 
 #define USE_LUT 0
+typedef uint16_t float16_t;
 
 #ifdef ELEM_T_IS_FLOAT
 elem_t elem_t_bits_to_elem_t(elem_t_bits x) {
@@ -313,6 +314,16 @@ static acc_scale_t_bits acc_scale_t_to_acc_scale_t_bits(acc_scale_t x) {
     ROCC_INSTRUCTION(XCUSTOM_ACC, rd, config_reg, _placeholder, k_COUNTER) \
   }
 
+static uint64_t read_cycles() {
+    uint64_t cycles;
+    asm volatile ("rdcycle %0" : "=r" (cycles));
+    return cycles;
+
+    // const uint32_t * mtime = (uint32_t *)(33554432 + 0xbff8);
+    // const uint32_t * mtime = (uint32_t *)(33554432 + 0xbffc);
+    // return *mtime;
+}
+
 // Read counter
 static uint32_t counter_read(size_t index) {
   uint32_t config_reg = (index & 0x7) << 4;
@@ -363,11 +374,17 @@ int ceil_divide_int(int a, int b){
 // weight-stationary matmul loop
 #define gemmini_loop_ws(I, J, K, pad_I, pad_J, pad_K, A, B, D, C, A_stride, B_stride, D_stride, C_stride, A_transpose, B_transpose, full_C, low_D, ex_accumulate, act, a_spad_id, b_spad_id, is_resadd) \
   { \
+    printf("instruct 1,cycles:%d\n",read_cycles()); \
     ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, ((uint64_t)(pad_K) << 32) | ((uint64_t)(pad_J) << 16) | (uint64_t)(pad_I), ((uint64_t)(K) << 32) | ((uint64_t)(J) << 16) | (uint64_t)(I), k_LOOP_WS_CONFIG_BOUNDS) \
+    printf("instruct 2,cycles:%d\n",read_cycles()); \
     ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, A, B, k_LOOP_WS_CONFIG_ADDRS_AB) \
+    printf("instruct 3,cycles:%d\n",read_cycles()); \
     ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, D, C, k_LOOP_WS_CONFIG_ADDRS_DC) \
+    printf("instruct 4,cycles:%d\n",read_cycles()); \
     ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, A_stride, B_stride, k_LOOP_WS_CONFIG_STRIDES_AB) \
+    printf("instruct 5,cycles:%d\n",read_cycles()); \
     ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, D_stride, C_stride, k_LOOP_WS_CONFIG_STRIDES_DC) \
+    printf("instruct 6,cycles:%d\n",read_cycles()); \
     ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, ((uint64_t)(a_spad_id) << 18) | ((uint64_t)(b_spad_id) << 16) | ((uint64_t)(act) << 8) | ((low_D) << 2) | ((full_C) << 1) | (ex_accumulate), ((is_resadd) << 2) | ((B_transpose) << 1) | (A_transpose), k_LOOP_WS) \
   }
 
@@ -410,14 +427,16 @@ static void sp_tiled_matmul_os(const elem_t * A, const elem_t * B, const void * 
   const int A_blocks = K <= MAX_BLOCK_LEN ? K : MAX_BLOCK_LEN;
   const int B_blocks = J <= MAX_BLOCK_LEN ? J : MAX_BLOCK_LEN;
   const int D_blocks = J <= MAX_BLOCK_LEN_ACC ? J : MAX_BLOCK_LEN_ACC;
-
+  printf("sp_tiled_matmul_os  A_blocks: %d, B_blocks: %d, D_blocks: %d\n", A_blocks, B_blocks, D_blocks);
   // Move-in D
+  printf("start to move in D, cycles:%d\n",read_cycles());
   if (D != NULL && !no_bias) {
     const size_t D_stride = repeating_bias ? 0 : D_row_stride * sizeof(acc_t);
     gemmini_extended_config_ld(D_stride, D_scale_factor);
 
     for (size_t i = 0; i < I; i++) {
       for (size_t j = 0; j < J; j += D_blocks) {
+        printf("i:%d, j:%d, cycles:%d\n",i,j,read_cycles());
         const size_t bias_row = repeating_bias ? 0 : i;
         const acc_t * const D_dram_addr = (acc_t *)D + (bias_row * D_row_stride + j)*DIM;
 
@@ -432,11 +451,12 @@ static void sp_tiled_matmul_os(const elem_t * A, const elem_t * B, const void * 
       }
     }
   }
-
+  printf("start to move in B, cycles:%d\n",read_cycles());
   // Move-in B
   gemmini_extended_config_ld(B_row_stride * sizeof(elem_t), B_scale_factor);
   for (size_t j = 0; j < J; j += B_blocks) {
     for (size_t k = 0; k < K; k++) {
+      printf("j:%d, k:%d, cycles:%d\n",j,k,read_cycles());
       const elem_t * const B_dram_addr = B + (k*B_row_stride + j)*DIM;
       const uint32_t B_sp_addr = B_sp_addr_start + (k*J + j)*DIM;
       const size_t blocks = j + B_blocks <= J ? B_blocks : J-j;
@@ -445,11 +465,12 @@ static void sp_tiled_matmul_os(const elem_t * A, const elem_t * B, const void * 
       gemmini_extended_mvin(B_dram_addr, B_sp_addr, cols, rows);
     }
   }
-
+  printf("start to move in A, cycles:%d\n",read_cycles());
   // Move-in A
   gemmini_extended_config_ld(A_row_stride * sizeof(elem_t), A_scale_factor);
   for (size_t i = 0; i < I; i++) {
     for (size_t k = 0; k < K; k += A_blocks) {
+      printf("i:%d, k:%d, cycles:%d\n",i,k,read_cycles());
       const elem_t * const A_dram_addr = A + (i*A_row_stride + k)*DIM;
       const uint32_t A_sp_addr = A_sp_addr_start + (i*K + k)*DIM;
       const size_t blocks = k + A_blocks <= K ? A_blocks : K-k;
@@ -704,6 +725,183 @@ static void sp_tiled_matmul_ws(const elem_t * A, const elem_t * B,
 }
 
 
+
+
+static acc_t int_sqrt(acc_t n) {
+  if (n == 0) return 0;
+
+  int bits = 0;
+  for (acc_t x = n; x > 0; x /= 2)
+    bits++;
+
+  acc_t x_prev = 1 << ((bits + 1) / 2);
+
+  while (1) {
+    acc_t x_next = (x_prev + n / x_prev) / 2;
+    if (x_next >= x_prev) return x_prev;
+    x_prev = x_next;
+  };
+}
+
+
+
+#ifdef HAS_MVIN_SCALE
+#define GEMMINI_SCALE(x, scale) MVIN_SCALE((x), (scale))
+#else
+#define GEMMINI_SCALE(x, scale) (x)
+#endif
+
+#ifdef HAS_MVIN_ACC_SCALE
+#define GEMMINI_ACC_SCALE(x, scale) MVIN_SCALE_ACC((x), (scale))
+#else
+#define GEMMINI_ACC_SCALE(x, scale) (x)
+#endif
+
+
+typedef union {
+  uint32_t i;
+  float    f;
+} float_uint32_union_t;
+
+
+// from https://github.com/AcademySoftwareFoundation/Imath/blob/main/src/Imath/half.h
+
+static inline float NN_halfToFloat(float16_t h) {
+  // #if defined(__F16C__)
+  //   // NB: The intel implementation does seem to treat NaN slightly
+  //   // different than the original toFloat table does (i.e. where the
+  //   // 1 bits are, meaning the signalling or not bits). This seems
+  //   // benign, given that the original library didn't really deal with
+  //   // signalling vs non-signalling NaNs
+  //   #ifdef _MSC_VER
+  //     /* msvc does not seem to have cvtsh_ss :( */
+  //     return _mm_cvtss_f32(_mm_cvtph_ps (_mm_set1_epi16 (h)));
+  //   #else
+  //     return _cvtsh_ss(h);
+  //   #endif
+  // #else
+  float_uint32_union_t v;
+  // this code would be clearer, although it does appear to be faster
+  // (1.06 vs 1.08 ns/call) to avoid the constants and just do 4
+  // shifts.
+  //
+  uint32_t hexpmant = ((uint32_t) (h) << 17) >> 4;
+  v.i               = ((uint32_t) (h >> 15)) << 31;
+
+  // the likely really does help if most of your numbers are "normal" half numbers
+  if ((hexpmant >= 0x00800000)) {
+    v.i |= hexpmant;
+    // either we are a normal number, in which case add in the bias difference
+    // otherwise make sure all exponent bits are set
+    if ((hexpmant < 0x0f800000)) {
+      v.i += 0x38000000;
+    }  
+    else {
+      v.i |= 0x7f800000;
+    }
+  }
+  else if (hexpmant != 0) {
+    // exponent is 0 because we're denormal, don't have to extract
+    // the mantissa, can just use as is
+    //
+    //
+    // other compilers may provide count-leading-zeros primitives,
+    // but we need the community to inform us of the variants
+    uint32_t lc;
+    lc = 0;
+    while (0 == ((hexpmant << lc) & 0x80000000)) {
+      lc += 1;
+    }
+    lc -= 8;
+    // so nominally we want to remove that extra bit we shifted
+    // up, but we are going to add that bit back in, then subtract
+    // from it with the 0x38800000 - (lc << 23)....
+    //
+    // by combining, this allows us to skip the & operation (and
+    // remove a constant)
+    //
+    // hexpmant &= ~0x00800000;
+    v.i |= 0x38800000;
+    // lc is now x, where the desired exponent is then
+    // -14 - lc
+    // + 127 -> new exponent
+    v.i |= (hexpmant << lc);
+    v.i -= (lc << 23);
+  }
+  return v.f;
+  // #endif
+}
+
+///
+/// Convert half to float
+///
+/// Note: This only supports the "round to even" rounding mode, which
+/// was the only mode supported by the original OpenEXR library
+///
+
+static inline float16_t NN_floatToHalf(float f) {
+  // #if defined(__F16C__)
+  //   #ifdef _MSC_VER
+  //     // msvc does not seem to have cvtsh_ss :(
+  //     return _mm_extract_epi16 (
+  //         _mm_cvtps_ph (
+  //             _mm_set_ss (f), (_MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC)),
+  //         0);
+  //   #else
+  //     // preserve the fixed rounding mode to nearest
+  //     return _cvtss_sh (f, (_MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));
+  //   #endif
+  // #else
+  float_uint32_union_t  v;
+  float16_t ret;
+  uint32_t e, m, ui, r, shift;
+
+  v.f = f;
+
+  ui  = (v.i & ~0x80000000);
+  ret = ((v.i >> 16) & 0x8000);
+
+  // exponent large enough to result in a normal number, round and return
+  if (ui >= 0x38800000) {
+    // inf or nan
+    if (ui >= 0x7f800000) {
+      ret |= 0x7c00;
+      if (ui == 0x7f800000) {
+        return ret;
+      }
+      m = (ui & 0x7fffff) >> 13;
+      // make sure we have at least one bit after shift to preserve nan-ness
+      return ret | (uint16_t) m | (uint16_t) (m == 0);
+    }
+
+    // too large, round to infinity
+    if (ui > 0x477fefff) {
+      return ret | 0x7c00;
+    }
+
+    ui -= 0x38000000;
+    ui = ((ui + 0x00000fff + ((ui >> 13) & 1)) >> 13);
+    return ret | (uint16_t) ui;
+  }
+
+  // zero or flush to 0
+  if (ui < 0x33000001) {
+    return ret;
+  }
+
+  // produce a denormalized half
+  e     = (ui >> 23);
+  shift = 0x7e - e;
+  m     = 0x800000 | (ui & 0x7fffff);
+  r     = m << (32 - shift);
+  ret  |= (m >> shift);
+  if (r > 0x80000000 || (r == 0x80000000 && (ret & 0x1) != 0)) {
+    ret += 1;
+  }
+  return ret;
+// #endif
+}
+
 static void tiled_matmul_outer(size_t dim_I, size_t dim_J, size_t dim_K,
         const elem_t* A, const elem_t* B,
         const void * D, void * C,
@@ -745,38 +943,44 @@ static void tiled_matmul_outer(size_t dim_I, size_t dim_J, size_t dim_K,
 
   const size_t sizeof_D = low_D ? sizeof(elem_t) : sizeof(acc_t) ;
   const size_t sizeof_C = full_C ? sizeof(acc_t) : sizeof(elem_t);
-
+  printf("start to config,cycles:%d\n",read_cycles());
   gemmini_extended_config_ex(dataflow, act & 3, 0, 1, a_transpose, b_transpose);
+  printf("start to config st cycles:%d\n",read_cycles());
   gemmini_extended_config_st(stride_C * sizeof_C, act & 3, scale);
+  printf("start to config ld cycles1:%d\n",read_cycles());
   gemmini_extended3_config_ld(stride_A * sizeof(elem_t), A_scale_factor, false, 0);
-  gemmini_extended3_config_ld(stride_B * sizeof(elem_t), B_scale_factor, false, 1)
+  printf("start to config st cycles2:%d\n",read_cycles());
+  gemmini_extended3_config_ld(stride_B * sizeof(elem_t), B_scale_factor, false, 1);
+  printf("start to config st cycles3:%d\n",read_cycles());
   gemmini_extended3_config_ld(repeating_bias ? 0 : (stride_D * sizeof_D), D_scale_factor, low_D, 2);
-
+  printf("end config,cycles:%d\n",read_cycles());
   if (act == IGELU) {
-    const acc_scale_t sqrt_2 = 1.41421356237;
-    const acc_scale_t S = bert_scale;
-    const acc_scale_t S_erf = (-0.2888 * ((S*S) / 2));
+    const float sqrt_2 = 1.41421356237;
+    const float S = NN_halfToFloat(bert_scale);
+    const float S_erf = (-0.2888 * ((S*S) / 2));
 
-    const acc_t qb = -1.769 / (S / sqrt_2);
-    const acc_t qc = 1.0 / S_erf;
+    const float qb = -1.769 / (S / sqrt_2);
+    const float qc = 1.0 / S_erf;
 
     gemmini_config_norm(0, 0, 0, 0, 0, qb, qc);
   }
 
   if (act == SOFTMAX) {
-    const scale_t a = 0.3585;
-    const scale_t b = 1.353;
-    const scale_t c = 0.344;
+    const float a = 0.3585;
+    const float b = 1.353;
+    const float c = 0.344;
 
-    const acc_t qln2 = (int) (0.693147 / bert_scale);
-    const acc_t qln2_inv = 65536 / qln2;
-    const acc_t qb = b / bert_scale;
-    const acc_t qc = c / (a*bert_scale*bert_scale);
-
-    gemmini_config_norm(qln2, 0, 0, 1, 0, qb, qc);
-    gemmini_config_norm(qln2_inv, 1, 0, 1, 0, qb, qc);
+    const int qln2 = (int) (0.693147 / NN_halfToFloat(bert_scale));
+    const int qln2_inv = (int)(65536.0 / qln2);
+    const int qb = (int)(b / NN_halfToFloat(bert_scale));
+    const int qc = (int)(c / (a*NN_halfToFloat(bert_scale)*NN_halfToFloat(bert_scale)));
+    printf("qln2: %d, qln2_inv: %d, qb: %d, qc: %d\n", qln2, qln2_inv, qb, qc);
+    //gemmini_config_norm(qln2, 0, 0, 1, 0, qb, qc);
+    gemmini_config_norm(NN_floatToHalf((float)qln2),0,0,1,0,NN_floatToHalf((float)qb),NN_floatToHalf((float)qc));
+    //gemmini_config_norm(qln2_inv, 1, 0, 1, 0, qb, qc);
+    gemmini_config_norm(NN_floatToHalf((float)qln2_inv),1,0,1,0,NN_floatToHalf((float)qb),NN_floatToHalf((float)qc));
   }
-
+  printf("prepare computing ,cycles:%d\n",read_cycles());
   void (*inner)(const elem_t *, const elem_t *, const void *, void *,
         scale_t, scale_t, scale_acc_t,
         size_t, size_t, size_t, size_t, size_t, size_t,
@@ -833,7 +1037,7 @@ static void tiled_matmul_outer(size_t dim_I, size_t dim_J, size_t dim_K,
 
         if(a_reuse && j0 >= 1) a = NULL;
         if(b_reuse && i0 >= 1) b = NULL;
-        //printf("a_reuse: %d, b_reuse: %d, a_spad_id: %d, b_spad_id: %d, a: %llu, b: %llu \n", a_reuse, b_reuse, a_spad_id, b_spad_id, a, b);
+        printf("i0: %d, j0:%d, k0:%d, a_reuse: %d, b_reuse: %d, a_spad_id: %d, b_spad_id: %d, a: %llu, b: %llu,cycles:%d \n",i0,j0,k0, a_reuse, b_reuse, a_spad_id, b_spad_id, a, b, read_cycles());
         (*inner)(a, b, pre, out,
             A_scale_factor, B_scale_factor, D_scale_factor,
             I, J, K,
@@ -849,67 +1053,38 @@ static void tiled_matmul_outer(size_t dim_I, size_t dim_J, size_t dim_K,
 }
 
 
-static acc_t int_sqrt(acc_t n) {
-  if (n == 0) return 0;
-
-  int bits = 0;
-  for (acc_t x = n; x > 0; x /= 2)
-    bits++;
-
-  acc_t x_prev = 1 << ((bits + 1) / 2);
-
-  while (1) {
-    acc_t x_next = (x_prev + n / x_prev) / 2;
-    if (x_next >= x_prev) return x_prev;
-    x_prev = x_next;
-  };
-}
-
-
 static elem_t scale_and_sat(acc_t x, int act, acc_scale_t scale, acc_scale_t bert_scale) {
   // Apply I-GELU if needed
   if (act == IGELU) {
-    const acc_scale_t sqrt_2 = 1.41421356237;
+    const float sqrt_2 = 1.41421356237;
 
-    const acc_scale_t S = bert_scale;
+    const float S = NN_halfToFloat((float16_t)bert_scale);
 
-    const acc_scale_t S_erf = (-0.2888 * (S/sqrt_2)*(S/sqrt_2));
-    const acc_t q1 = 1 / S_erf;
-    const acc_t qb = -1.769 / (S / sqrt_2);
-    const acc_t qc = 1.0 / (-0.2888 * (S / sqrt_2) * (S / sqrt_2));
+    const float S_erf = (-0.2888 * (S/sqrt_2)*(S/sqrt_2));
+    const float q1 = 1 / S_erf;
+    const float qb = -1.769 / (S / sqrt_2);
+    const float qc = 1.0 / (-0.2888 * (S / sqrt_2) * (S / sqrt_2));
 
-    const acc_t q = x;
+    const float q = NN_halfToFloat(x);
 
-    const acc_t q_sign = q < 0 ? -1 : 1;
-    const acc_t q_clipped = abs(q) > (-qb) ? (-qb) : abs(q);
-    const acc_t q_poly = (q_clipped + qb)*(q_clipped + qb) + qc;
-    const acc_t q_erf = q_sign * q_poly;
+    const float q_sign = q < 0 ? -1 : 1;
+    const float q_clipped = abs(q) > (-qb) ? (-qb) : abs(q);
+    const float q_poly = (q_clipped + qb)*(q_clipped + qb) + qc;
+    const float q_erf = q_sign * q_poly;
 
-    x = q * (q_erf + q1);
+    x = NN_floatToHalf(q * (q_erf + q1));
   }
 
   // Scale value down and round it
-  x = ACC_SCALE(x, scale);
+  x = NN_floatToHalf(ACC_SCALE(NN_halfToFloat(x), NN_halfToFloat(scale)));
   // Clip result
-  x = x > elem_t_max ? elem_t_max : (x < elem_t_min ? elem_t_min : x);
+  x = NN_halfToFloat(x) > NN_halfToFloat(elem_t_max) ? elem_t_max : (NN_halfToFloat(x) < NN_halfToFloat(elem_t_min) ? elem_t_min : x);
   // Apply activation function
   if (act == RELU) {
-    x = x < 0 ? 0 : x;
+    x = NN_halfToFloat(x) < 0 ? 0 : x;
   }
   return x;
 }
-
-#ifdef HAS_MVIN_SCALE
-#define GEMMINI_SCALE(x, scale) MVIN_SCALE((x), (scale))
-#else
-#define GEMMINI_SCALE(x, scale) (x)
-#endif
-
-#ifdef HAS_MVIN_ACC_SCALE
-#define GEMMINI_ACC_SCALE(x, scale) MVIN_SCALE_ACC((x), (scale))
-#else
-#define GEMMINI_ACC_SCALE(x, scale) (x)
-#endif
 
 static void matmul_cpu(bool transA, bool transB, size_t DIM_I, size_t DIM_J, size_t DIM_K,
         const elem_t* A, const elem_t* B, const acc_t * D,
@@ -929,58 +1104,107 @@ static void matmul_cpu(bool transA, bool transB, size_t DIM_I, size_t DIM_J, siz
           for (size_t jj = 0; jj < 4; jj++) {
             const size_t bias_row = repeating_bias ? 0 : i + ii;
             result[ii][jj] = no_bias ? 0 :
-              GEMMINI_ACC_SCALE(*(D + bias_row*stride_D + j + jj), D_scale_factor);
+              NN_floatToHalf(GEMMINI_ACC_SCALE(*(D + bias_row*stride_D + j + jj), D_scale_factor));
           }
 
         for (size_t k = 0; k < DIM_K; k++) {
-          result[0][0] +=
-                GEMMINI_SCALE(*(A + i*stride_A + k), A_scale_factor) *
-                GEMMINI_SCALE(*(B + k*stride_B + j), B_scale_factor);
-          result[0][1] +=
-                GEMMINI_SCALE(*(A + i*stride_A + k), A_scale_factor) *
-                GEMMINI_SCALE(*(B + k*stride_B + j+1), B_scale_factor);
-          result[0][2] +=
-                GEMMINI_SCALE(*(A + i*stride_A + k), A_scale_factor) *
-                GEMMINI_SCALE(*(B + k*stride_B + j+2), B_scale_factor);
-          result[0][3] +=
-                GEMMINI_SCALE(*(A + i*stride_A + k), A_scale_factor) *
-                GEMMINI_SCALE(*(B + k*stride_B + j+3), B_scale_factor);
-          result[1][0] +=
-                GEMMINI_SCALE(*(A + (i+1)*stride_A + k), A_scale_factor) *
-                GEMMINI_SCALE(*(B + k*stride_B + j), B_scale_factor);
-          result[1][1] +=
-                GEMMINI_SCALE(*(A + (i+1)*stride_A + k), A_scale_factor) *
-                GEMMINI_SCALE(*(B + k*stride_B + j+1), B_scale_factor);
-          result[1][2] +=
-                GEMMINI_SCALE(*(A + (i+1)*stride_A + k), A_scale_factor) *
-                GEMMINI_SCALE(*(B + k*stride_B + j+2), B_scale_factor);
-          result[1][3] +=
-                GEMMINI_SCALE(*(A + (i+1)*stride_A + k), A_scale_factor) *
-                GEMMINI_SCALE(*(B + k*stride_B + j+3), B_scale_factor);
-          result[2][0] +=
-                GEMMINI_SCALE(*(A + (i+2)*stride_A + k), A_scale_factor) *
-                GEMMINI_SCALE(*(B + k*stride_B + j), B_scale_factor);
-          result[2][1] +=
-                GEMMINI_SCALE(*(A + (i+2)*stride_A + k), A_scale_factor) *
-                GEMMINI_SCALE(*(B + k*stride_B + j+1), B_scale_factor);
-          result[2][2] +=
-                GEMMINI_SCALE(*(A + (i+2)*stride_A + k), A_scale_factor) *
-                GEMMINI_SCALE(*(B + k*stride_B + j+2), B_scale_factor);
-          result[2][3] +=
-                GEMMINI_SCALE(*(A + (i+2)*stride_A + k), A_scale_factor) *
-                GEMMINI_SCALE(*(B + k*stride_B + j+3), B_scale_factor);
-          result[3][0] +=
-                GEMMINI_SCALE(*(A + (i+3)*stride_A + k), A_scale_factor) *
-                GEMMINI_SCALE(*(B + k*stride_B + j), B_scale_factor);
-          result[3][1] +=
-                GEMMINI_SCALE(*(A + (i+3)*stride_A + k), A_scale_factor) *
-                GEMMINI_SCALE(*(B + k*stride_B + j+1), B_scale_factor);
-          result[3][2] +=
-                GEMMINI_SCALE(*(A + (i+3)*stride_A + k), A_scale_factor) *
-                GEMMINI_SCALE(*(B + k*stride_B + j+2), B_scale_factor);
-          result[3][3] +=
-                GEMMINI_SCALE(*(A + (i+3)*stride_A + k), A_scale_factor) *
-                GEMMINI_SCALE(*(B + k*stride_B + j+3), B_scale_factor);
+          // result[0][0] +=
+          //       GEMMINI_SCALE(*(A + i*stride_A + k), A_scale_factor) *
+          //       GEMMINI_SCALE(*(B + k*stride_B + j), B_scale_factor);
+          // result[0][1] +=
+          //       GEMMINI_SCALE(*(A + i*stride_A + k), A_scale_factor) *
+          //       GEMMINI_SCALE(*(B + k*stride_B + j+1), B_scale_factor);
+          // result[0][2] +=
+          //       GEMMINI_SCALE(*(A + i*stride_A + k), A_scale_factor) *
+          //       GEMMINI_SCALE(*(B + k*stride_B + j+2), B_scale_factor);
+          // result[0][3] +=
+          //       GEMMINI_SCALE(*(A + i*stride_A + k), A_scale_factor) *
+          //       GEMMINI_SCALE(*(B + k*stride_B + j+3), B_scale_factor);
+          // result[1][0] +=
+          //       GEMMINI_SCALE(*(A + (i+1)*stride_A + k), A_scale_factor) *
+          //       GEMMINI_SCALE(*(B + k*stride_B + j), B_scale_factor);
+          // result[1][1] +=
+          //       GEMMINI_SCALE(*(A + (i+1)*stride_A + k), A_scale_factor) *
+          //       GEMMINI_SCALE(*(B + k*stride_B + j+1), B_scale_factor);
+          // result[1][2] +=
+          //       GEMMINI_SCALE(*(A + (i+1)*stride_A + k), A_scale_factor) *
+          //       GEMMINI_SCALE(*(B + k*stride_B + j+2), B_scale_factor);
+          // result[1][3] +=
+          //       GEMMINI_SCALE(*(A + (i+1)*stride_A + k), A_scale_factor) *
+          //       GEMMINI_SCALE(*(B + k*stride_B + j+3), B_scale_factor);
+          // result[2][0] +=
+          //       GEMMINI_SCALE(*(A + (i+2)*stride_A + k), A_scale_factor) *
+          //       GEMMINI_SCALE(*(B + k*stride_B + j), B_scale_factor);
+          // result[2][1] +=
+          //       GEMMINI_SCALE(*(A + (i+2)*stride_A + k), A_scale_factor) *
+          //       GEMMINI_SCALE(*(B + k*stride_B + j+1), B_scale_factor);
+          // result[2][2] +=
+          //       GEMMINI_SCALE(*(A + (i+2)*stride_A + k), A_scale_factor) *
+          //       GEMMINI_SCALE(*(B + k*stride_B + j+2), B_scale_factor);
+          // result[2][3] +=
+          //       GEMMINI_SCALE(*(A + (i+2)*stride_A + k), A_scale_factor) *
+          //       GEMMINI_SCALE(*(B + k*stride_B + j+3), B_scale_factor);
+          // result[3][0] +=
+          //       GEMMINI_SCALE(*(A + (i+3)*stride_A + k), A_scale_factor) *
+          //       GEMMINI_SCALE(*(B + k*stride_B + j), B_scale_factor);
+          // result[3][1] +=
+          //       GEMMINI_SCALE(*(A + (i+3)*stride_A + k), A_scale_factor) *
+          //       GEMMINI_SCALE(*(B + k*stride_B + j+1), B_scale_factor);
+          // result[3][2] +=
+          //       GEMMINI_SCALE(*(A + (i+3)*stride_A + k), A_scale_factor) *
+          //       GEMMINI_SCALE(*(B + k*stride_B + j+2), B_scale_factor);
+          // result[3][3] +=
+          //       GEMMINI_SCALE(*(A + (i+3)*stride_A + k), A_scale_factor) *
+          //       GEMMINI_SCALE(*(B + k*stride_B + j+3), B_scale_factor);
+          result[0][0] = NN_floatToHalf(NN_halfToFloat(result[0][0]) + 
+                GEMMINI_SCALE(NN_halfToFloat(*(A + i*stride_A + k)), NN_halfToFloat(A_scale_factor)) *
+                GEMMINI_SCALE(NN_halfToFloat(*(B + k*stride_B + j)), NN_halfToFloat(B_scale_factor)));
+          result[0][1] = NN_floatToHalf(NN_halfToFloat(result[0][1]) + 
+                          GEMMINI_SCALE(NN_halfToFloat(*(A + i*stride_A + k)), NN_halfToFloat(A_scale_factor)) *
+                          GEMMINI_SCALE(NN_halfToFloat(*(B + k*stride_B + j+1)), NN_halfToFloat(B_scale_factor)));
+          result[0][2] = NN_floatToHalf(NN_halfToFloat(result[0][2]) + 
+                          GEMMINI_SCALE(NN_halfToFloat(*(A + i*stride_A + k)), NN_halfToFloat(A_scale_factor)) *
+                          GEMMINI_SCALE(NN_halfToFloat(*(B + k*stride_B + j+2)), NN_halfToFloat(B_scale_factor)));
+          result[0][3] = NN_floatToHalf(NN_halfToFloat(result[0][3]) + 
+                          GEMMINI_SCALE(NN_halfToFloat(*(A + i*stride_A + k)), NN_halfToFloat(A_scale_factor)) *
+                          GEMMINI_SCALE(NN_halfToFloat(*(B + k*stride_B + j+3)), NN_halfToFloat(B_scale_factor)));
+          result[1][0] = NN_floatToHalf(NN_halfToFloat(result[1][0]) + 
+                          GEMMINI_SCALE(NN_halfToFloat(*(A + (i+1)*stride_A + k)), NN_halfToFloat(A_scale_factor)) *
+                          GEMMINI_SCALE(NN_halfToFloat(*(B + k*stride_B + j)), NN_halfToFloat(B_scale_factor)));
+          result[1][1] = NN_floatToHalf(NN_halfToFloat(result[1][1]) + 
+                          GEMMINI_SCALE(NN_halfToFloat(*(A + (i+1)*stride_A + k)), NN_halfToFloat(A_scale_factor)) *
+                          GEMMINI_SCALE(NN_halfToFloat(*(B + k*stride_B + j+1)), NN_halfToFloat(B_scale_factor)));
+          result[1][2] = NN_floatToHalf(NN_halfToFloat(result[1][2]) + 
+                          GEMMINI_SCALE(NN_halfToFloat(*(A + (i+1)*stride_A + k)), NN_halfToFloat(A_scale_factor)) *
+                          GEMMINI_SCALE(NN_halfToFloat(*(B + k*stride_B + j+2)), NN_halfToFloat(B_scale_factor)));
+          result[1][3] = NN_floatToHalf(NN_halfToFloat(result[1][3]) + 
+                          GEMMINI_SCALE(NN_halfToFloat(*(A + (i+1)*stride_A + k)), NN_halfToFloat(A_scale_factor)) *
+                          GEMMINI_SCALE(NN_halfToFloat(*(B + k*stride_B + j+3)), NN_halfToFloat(B_scale_factor)));
+          result[2][0] = NN_floatToHalf(NN_halfToFloat(result[2][0]) + 
+                          GEMMINI_SCALE(NN_halfToFloat(*(A + (i+2)*stride_A + k)), NN_halfToFloat(A_scale_factor)) *
+                          GEMMINI_SCALE(NN_halfToFloat(*(B + k*stride_B + j)), NN_halfToFloat(B_scale_factor)));
+          result[2][1] = NN_floatToHalf(NN_halfToFloat(result[2][1]) + 
+                          GEMMINI_SCALE(NN_halfToFloat(*(A + (i+2)*stride_A + k)), NN_halfToFloat(A_scale_factor)) *
+                          GEMMINI_SCALE(NN_halfToFloat(*(B + k*stride_B + j+1)), NN_halfToFloat(B_scale_factor)));
+          result[2][2] = NN_floatToHalf(NN_halfToFloat(result[2][2]) + 
+                          GEMMINI_SCALE(NN_halfToFloat(*(A + (i+2)*stride_A + k)), NN_halfToFloat(A_scale_factor)) *
+                          GEMMINI_SCALE(NN_halfToFloat(*(B + k*stride_B + j+2)), NN_halfToFloat(B_scale_factor)));
+          result[2][3] = NN_floatToHalf(NN_halfToFloat(result[2][3]) + 
+                          GEMMINI_SCALE(NN_halfToFloat(*(A + (i+2)*stride_A + k)), NN_halfToFloat(A_scale_factor)) *
+                          GEMMINI_SCALE(NN_halfToFloat(*(B + k*stride_B + j+3)), NN_halfToFloat(B_scale_factor)));
+          result[3][0] = NN_floatToHalf(NN_halfToFloat(result[3][0]) + 
+                          GEMMINI_SCALE(NN_halfToFloat(*(A + (i+3)*stride_A + k)), NN_halfToFloat(A_scale_factor)) *
+                          GEMMINI_SCALE(NN_halfToFloat(*(B + k*stride_B + j)), NN_halfToFloat(B_scale_factor)));
+          result[3][1] = NN_floatToHalf(NN_halfToFloat(result[3][1]) + 
+                          GEMMINI_SCALE(NN_halfToFloat(*(A + (i+3)*stride_A + k)), NN_halfToFloat(A_scale_factor)) *
+                          GEMMINI_SCALE(NN_halfToFloat(*(B + k*stride_B + j+1)), NN_halfToFloat(B_scale_factor)));
+          result[3][2] = NN_floatToHalf(NN_halfToFloat(result[3][2]) + 
+                          GEMMINI_SCALE(NN_halfToFloat(*(A + (i+3)*stride_A + k)), NN_halfToFloat(A_scale_factor)) *
+                          GEMMINI_SCALE(NN_halfToFloat(*(B + k*stride_B + j+2)), NN_halfToFloat(B_scale_factor)));
+          result[3][3] = NN_floatToHalf(NN_halfToFloat(result[3][3]) + 
+                          GEMMINI_SCALE(NN_halfToFloat(*(A + (i+3)*stride_A + k)), NN_halfToFloat(A_scale_factor)) *
+                          GEMMINI_SCALE(NN_halfToFloat(*(B + k*stride_B + j+3)), NN_halfToFloat(B_scale_factor)));
+
         }
 
         *(C + i*stride_C + j) =
@@ -1034,72 +1258,73 @@ static void matmul_cpu(bool transA, bool transB, size_t DIM_I, size_t DIM_J, siz
         elem_t* c = C + (i * stride_C) + j;
 
         const size_t bias_row = repeating_bias ? 0 : i;
-        acc_t sum = no_bias ? 0 : GEMMINI_ACC_SCALE(*(D + bias_row * stride_D + j), D_scale_factor);
+        acc_t sum = no_bias ? 0 : NN_floatToHalf(GEMMINI_ACC_SCALE(*(D + bias_row * stride_D + j), D_scale_factor));
 
         for (size_t k = 0; k < DIM_K; k++) {
           const elem_t* a = A + i * A_dim_strides[0] + k * A_dim_strides[1];
           const elem_t* b = B + j * B_dim_strides[0] + k * B_dim_strides[1];
-          sum += (GEMMINI_SCALE(*a, A_scale_factor) * GEMMINI_SCALE(*b, B_scale_factor));
+          sum = NN_floatToHalf(NN_halfToFloat(sum)+(GEMMINI_SCALE(*a, NN_halfToFloat(A_scale_factor)) * GEMMINI_SCALE(*b, NN_halfToFloat(B_scale_factor))));
         }
 
         if (act == LAYERNORM || act == SOFTMAX)
-          c_buffer[j] = sum;
+          c_buffer[j] = NN_floatToHalf(sum);
         else
           *c = scale_and_sat(sum, act, scale, bert_scale);
       }
 
       if (act == LAYERNORM) {
-        acc_t sum = 0;
+        float sum = 0;
         for (size_t j = 0; j < DIM_J; j++)
-          sum += c_buffer[j];
-        acc_t mean = sum / (acc_t)DIM_J;
+          sum += NN_halfToFloat(c_buffer[j]);
+        float mean = sum / (float)DIM_J;
 
-        acc_t total_err_sq = 0;
+        float total_err_sq = 0;
         for (size_t j = 0; j < DIM_J; j++)
-          total_err_sq += (c_buffer[j] - mean)*(c_buffer[j] - mean);
-        acc_t variance = total_err_sq / (acc_t)DIM_J;
+          total_err_sq += (NN_halfToFloat(c_buffer[j]) - mean)*(NN_halfToFloat(c_buffer[j]) - mean);
+        float variance = total_err_sq / (acc_t)DIM_J;
 
-        acc_t stddev = int_sqrt(variance);
+        float stddev = int_sqrt(variance);
         if (variance == 0) stddev = 1;
 
         for (size_t j = 0; j < DIM_J; j++) {
-          c_buffer[j] -= mean;
+          //c_buffer[j] -= mean;
+          c_buffer[j] = NN_floatToHalf(NN_halfToFloat(c_buffer[j]) - mean);
           // c_buffer[j] /= stddev;
-          c_buffer[j] = ROUND_NEAR_EVEN((double)c_buffer[j] / stddev); // TODO I don't think I-BERT uses round-near-even, so we shouldn't either. We just use this rounding mode here in order to match the hardware.
+          c_buffer[j] = NN_floatToHalf(ROUND_NEAR_EVEN((double)NN_halfToFloat(c_buffer[j]) / stddev)); // TODO I don't think I-BERT uses round-near-even, so we shouldn't either. We just use this rounding mode here in order to match the hardware.
 
           elem_t* c = C + (i * stride_C) + j;
           *c = scale_and_sat(c_buffer[j], act, scale, bert_scale);
         }
       } else if (act == SOFTMAX) {
-        const scale_t a = 0.3585;
-        const scale_t b = 1.353;
-        const scale_t c = 0.344;
+        const float a = 0.3585;
+        const float b = 1.353;
+        const float c = 0.344;
 
         // is SCALE supposed to be input scale?
-        const acc_t qln2 = (acc_t) (0.693147 / bert_scale);
-        const acc_t qln2_inv = 65536 / qln2;
-        const acc_t qb = b / bert_scale;
-        const acc_t qc = c / (a*bert_scale*bert_scale);
+        const float qln2 =  (0.693147 / NN_halfToFloat(bert_scale));
+        const float qln2_inv = 65536 / qln2;
+        const float qb = b / NN_halfToFloat(bert_scale);
+        const float qc = c / (a*NN_halfToFloat(bert_scale)*NN_halfToFloat(bert_scale));
 
         // pass 1: get max_q
-        acc_t max_q = -2147483648;
+        float max_q = -2147483648;
         for (size_t j = 0; j < DIM_J; j++) {
-          if (c_buffer[j] > max_q) max_q = c_buffer[j];
+          if (NN_halfToFloat(c_buffer[j]) > max_q) max_q = NN_halfToFloat(c_buffer[j]);
         }
 
         // pass 2: calculate iexp(q_tilde) and sum(q_tilde)
-        acc_t sum_exp = 0;
+        float sum_exp = 0;
         for (size_t j = 0; j < DIM_J; j++) {
-          acc_t q = c_buffer[j] - max_q;
-          acc_t z = 0; //(acc_t) (-q * qln2_inv) >> 16;
-          acc_t qp = q + z * qln2;
-          acc_t q_exp = (qp + qb)*(qp + qb) + qc;
-          c_buffer[j] = q_exp; //>> z;
-          sum_exp += c_buffer[j];
+          float q = NN_halfToFloat(c_buffer[j]) - max_q;
+          float z = 0; //(acc_t) (-q * qln2_inv) >> 16;
+          float qp = q + z * qln2;
+          float q_exp = (qp + qb)*(qp + qb) + qc;
+          c_buffer[j] = NN_floatToHalf(q_exp); //>> z;
+          sum_exp += NN_halfToFloat(c_buffer[j]);
         }
 
         // pass 3: divide by sum
-        scale_t factor = (127.f) / (float) sum_exp; // what corresponds to 1 in output?
+        scale_t factor = NN_halfToFloat((127.f) / (float) sum_exp); // what corresponds to 1 in output?
         for (size_t j = 0; j < DIM_J; j++) {
           elem_t* c = C + (i * stride_C) + j;
           *c = scale_and_sat(c_buffer[j], act, factor, bert_scale);
@@ -1209,7 +1434,7 @@ static void tiled_matmul(size_t dim_I, size_t dim_J, size_t dim_K,
     }
   }
 #endif
-
+  printf("start tiled_matmul_outer,cycles:%d\n",read_cycles());
   // Run a tiled matrix multiplication on either Gemmini or the CPU
   if (tiled_matmul_type == OS || tiled_matmul_type == WS) {
     tiled_matmul_outer(dim_I, dim_J, dim_K,
@@ -1267,7 +1492,7 @@ static void tiled_matmul_auto(size_t dim_I, size_t dim_J, size_t dim_K,
 #define db_mats_in_acc ((ACC_ROWS / 2) / DIM)
 #define db_max_tile_i_j ((size_t)sqrt(db_mats_in_acc))
 #define db_max_tile_k (db_mats_in_partition / db_max_tile_i_j)
-
+    printf("start tiled_matmul_auto,cycles:%d\n",read_cycles());
     const size_t dim_I_padded = (dim_I / DIM + (dim_I % DIM != 0)) * DIM;
     const size_t dim_J_padded = (dim_J / DIM + (dim_J % DIM != 0)) * DIM;
     const size_t dim_K_padded = (dim_K / DIM + (dim_K % DIM != 0)) * DIM;
@@ -1337,10 +1562,10 @@ static void tiled_matmul_auto(size_t dim_I, size_t dim_J, size_t dim_K,
     printf("spad_row utilization: %d%%\n", (spad_rows * 100) / max_spad_rows);
     printf("acc_row utilization: %d%%\n\n", (acc_rows * 100) / max_acc_rows);
 
-    exit(EXIT_SUCCESS);
+    //exit(EXIT_SUCCESS);
 #endif
 #endif
-
+    printf("start tiled_matmul,cycles:%d\n",read_cycles());
     tiled_matmul(dim_I, dim_J, dim_K,
         A, B, D, C,
         stride_A, stride_B, stride_D, stride_C,
@@ -3319,30 +3544,6 @@ static void tiled_resadd_auto(const size_t I, const size_t J,
         relu, matadd_type);
 }
 
-static void global_average_cpu(const elem_t * input, elem_t * output,
-    int batches, int channels, int dim) {
-  const int count = dim * dim;
-
-  for (int batch = 0; batch < batches; batch++) {
-    for (int channel = 0; channel < channels; channel++) {
-      acc_t sum = 0;
-      for (int row = 0; row < dim; row++) {
-        for (int col = 0; col < dim; col++) {
-          size_t pixel = batch * dim * dim + row * dim + col;
-
-          sum += input[pixel * channels + channel];
-        }
-      }
-
-#ifdef ELEM_T_IS_FLOAT
-      output[batch * channels + channel] = sum / count;
-#else
-      output[batch * channels + channel] = (sum + count/2) / count;
-#endif
-    }
-  }
-}
-
 
 static void sp_tiled_global_average(const elem_t * input, elem_t * output,
     int batches, int channels, int dim, int channel_tile_size) {
@@ -3388,45 +3589,6 @@ static void sp_tiled_global_average(const elem_t * input, elem_t * output,
 }
 
 
-static void tiled_global_average(const elem_t * input, elem_t * output,
-    int batches, int channels, int dim,
-    int channel_tile_size) {
-
-  gemmini_extended4_config_ld(DIM*sizeof(elem_t), MVIN_SCALE_IDENTITY, true, 1, 0);
-  gemmini_config_ex(0, NO_ACTIVATION, 0);
-  gemmini_extended_config_st(0, NO_ACTIVATION, 1.0 / (dim*dim));
-
-  for (int batch = 0; batch < batches; batch++) {
-    for (int channel = 0; channel < channels; channel += channel_tile_size) {
-      const int tile_size = channel + channel_tile_size <= channels ?
-        channel_tile_size : channels - channel;
-
-      sp_tiled_global_average(input + batch * dim * dim * channels + channel,
-          output + batch * channels + channel,
-          batches, channels, dim, tile_size);
-    }
-  }
-}
-
-
-static void tiled_global_average_auto(const elem_t * input, elem_t * output,
-    int batches, int channels, int dim,
-    enum tiled_matmul_type_t type) {
-  if (type == CPU) {
-    return global_average_cpu(input, output, batches, channels, dim);
-  }
-
-  int channel_tile_size = channels;
-
-  int acc_rows = channel_tile_size / DIM + (channel_tile_size % DIM != 0);
-  while (acc_rows > ACC_ROWS) {
-    channel_tile_size--;
-    acc_rows = channel_tile_size / DIM + (channel_tile_size % DIM != 0);
-  }
-
-  tiled_global_average(input, output, batches, channels, dim,
-      channel_tile_size);
-}
 
 static void sp_tiled_norm(const size_t I, const size_t J,
         const acc_t * in, elem_t * out,

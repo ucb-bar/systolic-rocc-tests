@@ -14,10 +14,12 @@
 #ifndef BAREMETAL
 
 #define BATCH_SIZE 4
-#define IN_ROW_DIM 224
-#define IN_COL_DIM 224
+#define IN_ROW_DIM 30
+#define IN_COL_DIM 30
+//224
 #define IN_CHANNELS 3
-#define OUT_CHANNELS 32
+#define OUT_CHANNELS 16
+//32
 #define KERNEL_DIM 3
 #define PADDING 1
 #define STRIDE 2
@@ -158,7 +160,8 @@ void init_random(elem_t * buf, int len) {
 // #else
 //       *ptr = (rand() % 5) - 2;
 // #endif
-        *ptr = (rand() % 5) - 2;
+        //*ptr = (rand() % 5) - 2;
+        *ptr = NN_floatToHalf((rand() % 5) - 2.0);
     }
 }
 
@@ -171,7 +174,8 @@ void init_random_acc(acc_t * buf, int len) {
 // #else
 //       *ptr = (rand() % 5) - 2;
 // #endif
-        *ptr = (rand() % 5) - 2;
+        //*ptr = (rand() % 5) - 2;
+        *ptr = NN_floatToHalf((rand() % 5) - 2.0);
     }
 }
 
@@ -378,7 +382,7 @@ int main() {
         }
         //printf("\b\n\n");
         printf("\n");
-        printf("Pass\n");
+        //printf("Pass\n");
         return 1;
     }
 

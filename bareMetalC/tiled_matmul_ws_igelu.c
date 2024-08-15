@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
+#define BAREMETAL 1
 #ifndef BAREMETAL
 #include <sys/mman.h>
 #endif
@@ -30,9 +31,9 @@ typedef elem_t ACC_T;
 #define MAT_DIM_J 512
 
 #else
-#define MAT_DIM_I 30
-#define MAT_DIM_K 30
-#define MAT_DIM_J 30
+#define MAT_DIM_I 5
+#define MAT_DIM_K 5
+#define MAT_DIM_J 5
 #endif
 
 void full_printMatrix(elem_t m[MAT_DIM_I][MAT_DIM_J]) {
@@ -96,21 +97,21 @@ int main() {
       }
     }
 
-    // printf("Starting slow CPU matmul\n");
-    // unsigned long cpu_start = read_cycles();
+    printf("Starting slow CPU matmul\n");
+    unsigned long cpu_start = read_cycles();
 
-    // tiled_matmul_auto(MAT_DIM_I, MAT_DIM_J, MAT_DIM_K,
-    //         (elem_t*)full_A, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], (elem_t*)gold,
-    //         MAT_DIM_K, MAT_DIM_J, MAT_DIM_J, MAT_DIM_J,
-    //         NN_floatToHalf(1), NN_floatToHalf(1), NN_floatToHalf(1),
-    //         IGELU, NN_floatToHalf(1), NN_floatToHalf(0.8), false,
-    //         false, false,
-    //         false, !FULL_BIAS_WIDTH,
-    //         0,
-    //         CPU);
+    tiled_matmul_auto(MAT_DIM_I, MAT_DIM_J, MAT_DIM_K,
+            (elem_t*)full_A, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], (elem_t*)gold,
+            MAT_DIM_K, MAT_DIM_J, MAT_DIM_J, MAT_DIM_J,
+            NN_floatToHalf(1), NN_floatToHalf(1), NN_floatToHalf(1),
+            SOFTMAX, NN_floatToHalf(1), NN_floatToHalf(0.05), false,
+            false, false,
+            false, !FULL_BIAS_WIDTH,
+            0,
+            CPU);
 
-    // unsigned long cpu_end = read_cycles();
-    // printf("Cycles taken: %u\n", cpu_end-cpu_start);
+    unsigned long cpu_end = read_cycles();
+    printf("Cycles taken: %u\n", cpu_end-cpu_start);
 
 #endif
 
@@ -122,7 +123,7 @@ int main() {
             (elem_t*)full_A, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], (elem_t*)full_C,
             MAT_DIM_K, MAT_DIM_J, MAT_DIM_J, MAT_DIM_J,
             NN_floatToHalf(1), NN_floatToHalf(1), NN_floatToHalf(1),
-            IGELU, NN_floatToHalf(1), NN_floatToHalf(0.8), false,
+            SOFTMAX, NN_floatToHalf(1), NN_floatToHalf(0.05), false,
             false, false,
             false, !FULL_BIAS_WIDTH,
             0,

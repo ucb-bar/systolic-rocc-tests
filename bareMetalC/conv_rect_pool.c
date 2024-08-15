@@ -11,10 +11,12 @@
 #ifndef BAREMETAL
 
 #define BATCH_SIZE 4
-#define IN_ROW_DIM 224
-#define IN_COL_DIM 224
+#define IN_ROW_DIM 32
+#define IN_COL_DIM 32
+//224
 #define IN_CHANNELS 3
-#define OUT_CHANNELS 32
+#define OUT_CHANNELS 16
+//32
 #define KERNEL_DIM 3
 #define PADDING 1
 #define STRIDE 2
@@ -22,7 +24,7 @@
 #define POOL_SIZE 3
 #define POOL_STRIDE 2
 #define POOL_PADDING 1
-
+//#define FAST
 #else
 
 #ifdef FAST
@@ -148,7 +150,7 @@ void pool(int batch_size, int channels,
                                 icol < 0 || icol >= in_col_dim ?
                                 0 : input[b][irow][icol][ch];
 
-                            if (pixel > output[b][orow][ocol][ch]) {
+                            if (NN_halfToFloat(pixel) > NN_halfToFloat(output[b][orow][ocol][ch])) {
                                 output[b][orow][ocol][ch] = pixel;
                             }
                         }
@@ -297,7 +299,7 @@ int main() {
         NO_BIAS ? NULL : (acc_t*)bias,
         (elem_t*)pool_output_mat,
 
-        NO_ACTIVATION, ACC_SCALE_IDENTITY,
+        NO_ACTIVATION, NN_floatToHalf(ACC_SCALE_IDENTITY),
         POOL_SIZE, NO_POOL ? 0 : POOL_STRIDE, POOL_PADDING,
 
         WS);
@@ -317,13 +319,15 @@ int main() {
       }
     }
 #else
-    static float output_fp32[BATCH_SIZE][OUT_ROW_DIM][OUT_COL_DIM][OUT_CHANNELS];
-    static float output_mat_fp32[N_PATCHES][OUT_CHANNELS];
+    static float output_fp32[BATCH_SIZE][POOL_OUT_ROW_DIM][POOL_OUT_COL_DIM][OUT_CHANNELS];
+    //[BATCH_SIZE][OUT_ROW_DIM][OUT_COL_DIM][OUT_CHANNELS];
+    static float output_mat_fp32[BATCH_SIZE * POOL_OUT_ROW_DIM * POOL_OUT_COL_DIM][OUT_CHANNELS];
+    //[N_PATCHES][OUT_CHANNELS];
 
-    for (int i = 0; i < sizeof(output) / sizeof(elem_t); i++) {
+    for (int i = 0; i < sizeof(pool_output) / sizeof(elem_t); i++) {
         ((float *)output_fp32)[i] = NN_halfToFloat(((elem_t *)pool_output)[i]);
     }
-    for (int i = 0; i < sizeof(output_mat) / sizeof(elem_t); i++) {
+    for (int i = 0; i < sizeof(pool_output_mat) / sizeof(elem_t); i++) {
         ((float *)output_mat_fp32)[i] = NN_halfToFloat(((elem_t *)pool_output_mat)[i]);
     }
 
@@ -419,7 +423,9 @@ int main() {
                 for (int ocol = 0; ocol < POOL_OUT_COL_DIM; ocol++) {
                     printf("[");
                     for (int och = 0; och < OUT_CHANNELS; och++) {
-                        printf("%d,", pool_output[batch][orow][ocol][och]);
+                        //printf("%d,", pool_output[batch][orow][ocol][och]);
+                        printf(" ");
+                        NN_printFloat(NN_halfToFloat(pool_output[batch][orow][ocol][och]),3);       
                     }
                     printf("\b],");
                 }
@@ -435,7 +441,7 @@ int main() {
             printf("[");
             for (int ocol = 0; ocol < OUT_CHANNELS; ocol++) {
                 printf(" ");
-                NN_printFloat(NN_halfToFloat(output_mat[orow][ocol]),3);
+                NN_printFloat(NN_halfToFloat(pool_output_mat[orow][ocol]),3);
             }
             printf("\b],\n");
         }
