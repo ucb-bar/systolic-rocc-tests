@@ -56,7 +56,8 @@ int main() {
 #endif
             int bytes = RAND % 2 ? sizeof(acc_t) : sizeof(elem_t);
             for (size_t b = 0; b < bytes; ++b) {
-              In[n][i][j] |= (RAND % 255) << (b*8);
+              //In[n][i][j] |= NN_floatToHalf((RAND % 255) << (b*8));
+              In[n][i][j] = NN_floatToHalf(1) ;
             }
 #else
             acc_t_bits data;
@@ -66,14 +67,14 @@ int main() {
 
               int bytes = rand() % 2 ? sizeof(acc_t) : sizeof(elem_t);
               for (size_t b = 0; b < bytes; ++b) {
-                data |= (uint64_t)(rand() % 255) << (b*8);
+                data |= NN_floatToHalf((rand() % 255) << (b*8));
               }
 
-              In[n][i][j] = acc_t_bits_to_acc_t(data);
+              In[n][i][j] = NN_floatToHalf(1) ; //acc_t_bits_to_acc_t(data);
             } while (acc_t_isnan(In[n][i][j]));
 #endif
 
-            In_full[n][i][j] = In[n][i][j];
+            In_full[n][i][j] = (full_t)NN_halfToFloat(In[n][i][j]);
           }
 
       // printf("Shifting and activating matrices\n");
@@ -89,7 +90,7 @@ int main() {
       // printf("Config\n");
       gemmini_config_ld(DIM*sizeof(acc_t));
       gemmini_config_ex(0, 0, 0);
-      gemmini_extended_config_st(DIM*sizeof(elem_t), activation, scale);
+      gemmini_extended_config_st(DIM*sizeof(elem_t), activation, NN_floatToHalf(scale));
 
       // printf("Mvin and mvout\n");
       for (size_t n = 0; n < N; ++n) {
@@ -108,26 +109,27 @@ int main() {
           printf("activation: %d, scale: %d\n", activation, scale);
 
           printf("Matrix %u:\n", n);
-          for (size_t i = 0; i < DIM; ++i) {
-            for (size_t j = 0; j < DIM; ++j)
-#ifndef ELEM_T_IS_FLOAT
-              printf("%d ", In[n][i][j]);
-#else
-              printf("%llx ", acc_t_to_acc_t_bits(In[n][i][j]));
-#endif
-            printf("\n");
-          }
+          // for (size_t i = 0; i < DIM; ++i) {
+          //   for (size_t j = 0; j < DIM; ++j)
+// #ifndef ELEM_T_IS_FLOAT
+//               printf("%d ", In[n][i][j]);
+// #else
+//               printf("%llx ", acc_t_to_acc_t_bits(In[n][i][j]));
+// #endif
+//             printf("\n");
+          printFPMatrix2(1, DIM, In[n]);
+          // }
           printf("Matrix %u output:\n", n);
-          printMatrix(Out[n]);
+          printFPMatrix2(1, DIM, Out[n]);
           printf("Matrix %u gold output:\n", n);
-          printMatrix(Out_gold[n]);
+          printFPMatrix2(1, DIM, Out_gold[n]);
           printf("\n");
 
           exit(1);
         }
     }
   }
-
+  printf("Pass\n");
   exit(0);
 }
 

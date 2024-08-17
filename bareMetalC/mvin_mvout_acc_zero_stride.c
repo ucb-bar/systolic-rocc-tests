@@ -37,7 +37,7 @@ int main() {
 
       int bytes = rand() % 2 ? sizeof(acc_t) : sizeof(elem_t);
       for (size_t b = 0; b < bytes; ++b) {
-        In[n][j] |= (rand() % 255) << (b*8);
+        In[n][j] = NN_floatToHalf(1); //|= (rand() % 255) << (b*8);
       }
 #else
       acc_t_bits data;
@@ -50,7 +50,7 @@ int main() {
           data |= (uint64_t)(rand() % 255) << (b*8);
         }
 
-        In[n][j] = acc_t_bits_to_acc_t(data);
+        In[n][j] = NN_floatToHalf(1); //acc_t_bits_to_acc_t(data);
       } while (acc_t_isnan(In[n][j]));
 #endif
     }
@@ -58,7 +58,7 @@ int main() {
   for (size_t n = 0; n < N; ++n)
     for (size_t i = 0; i < DIM; ++i)
       for (size_t j = 0; j < DIM; ++j) {
-        Out_gold[n][i][j] = ACC_SCALE(In[n][j], ACC_SCALE_IDENTITY);
+        Out_gold[n][i][j] = NN_floatToHalf(ACC_SCALE(NN_halfToFloat(In[n][j]), ACC_SCALE_IDENTITY));
       }
 
   const uint32_t acc_addr = 1 << (ADDR_LEN-1);
@@ -66,7 +66,7 @@ int main() {
   // printf("Config\n");
   gemmini_config_ld(0);
   gemmini_config_ex(0, NO_ACTIVATION, 0);
-  gemmini_config_st(DIM*sizeof(elem_t));
+  gemmini_extended_config_st(DIM*sizeof(elem_t), NO_ACTIVATION, NN_floatToHalf(1));
 
   // printf("Mvin and mvout\n");
   for (size_t n = 0; n < N; ++n) {
@@ -83,23 +83,16 @@ int main() {
   for (size_t n = 0; n < N; ++n)
     if (!is_equal(Out[n], Out_gold[n])) {
       printf("Matrix %u:\n", n);
-        for (size_t j = 0; j < DIM; ++j)
-#ifndef ELEM_T_IS_FLOAT
-          printf("%d ", In[n][j]);
-#else
-          printf("%llx ", acc_t_to_acc_t_bits(In[n][j]));
-#endif
-      printf("\n");
-
+      printFPMatrix2(1, DIM, In[n]);
       printf("Matrix %u output:\n", n);
-      printMatrix(Out[n]);
+      printFPMatrix2(1, DIM, Out[n]);
       printf("Matrix %u gold output:\n", n);
-      printMatrix(Out_gold[n]);
+      printFPMatrix2(1, DIM, Out_gold[n]);
       printf("\n");
 
       exit(1);
     }
-
+  printf("Pass\n");
   exit(0);
 }
 

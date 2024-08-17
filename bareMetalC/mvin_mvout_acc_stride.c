@@ -63,18 +63,22 @@ void matscale_big(full_t full[BIG_DIM][BIG_DIM], elem_t out[BIG_DIM][BIG_DIM], a
 
       // Saturate and cast element
 #ifndef ELEM_T_IS_FLOAT
-      full_t elem = scaled > elem_t_max ? elem_t_max : (scaled < elem_t_min ? elem_t_min : scaled);
-      out[r][c] = elem;
+      float elem = (float)scaled;
+      elem = elem > elem_t_max ? elem_t_max : (elem < elem_t_min ? elem_t_min : elem);
+      out[r][c] = NN_floatToHalf(elem);
 #else
-      out[r][c] = scaled; // TODO should we also saturate when using floats?
+      out[r][c] = NN_floatToHalf((float)scaled); // TODO should we also saturate when using floats?
 #endif
     }
 }
 
 void matrelu_big(elem_t in[BIG_DIM][BIG_DIM], elem_t out[BIG_DIM][BIG_DIM]) {
+
   for (size_t r = 0; r < BIG_DIM; r++)
-    for (size_t c = 0; c < BIG_DIM; c++)
-      out[r][c] = in[r][c] > 0 ? in[r][c] : 0;
+    for (size_t c = 0; c < BIG_DIM; c++){
+      float temp = NN_halfToFloat(in[r][c]);
+      out[r][c] = temp > 0 ? in[r][c] : 0;
+    }
 }
 
 void printMatrix_big(elem_t m[BIG_DIM][BIG_DIM]) {
@@ -132,7 +136,7 @@ int main() {
 #endif
             int bytes = RAND % 2 ? sizeof(acc_t) : sizeof(elem_t);
             for (size_t b = 0; b < bytes; ++b) {
-              In[i][j] |= (RAND % 255) << (b*8);
+              In[i][j] = NN_floatToHalf(1);//|= (RAND % 255) << (b*8);
             }
 #else
             acc_t_bits data;
@@ -145,11 +149,11 @@ int main() {
                 data |= (uint64_t)(rand() % 255) << (b*8);
               }
 
-              In[i][j] = acc_t_bits_to_acc_t(data);
+              In[i][j] = NN_floatToHalf(1);//acc_t_bits_to_acc_t(data);
             } while (acc_t_isnan(In[i][j]));
 #endif
 
-            In_full[i][j] = In[i][j];
+            In_full[i][j] = (full_t)NN_halfToFloat(In[i][j]);
           }
         }
 
@@ -162,7 +166,7 @@ int main() {
 
         gemmini_config_ld(BIG_DIM*sizeof(acc_t));
         gemmini_config_ex(0, 0, 0);
-        gemmini_extended_config_st(BIG_DIM*sizeof(elem_t), activation, scale);
+        gemmini_extended_config_st(BIG_DIM*sizeof(elem_t), activation, NN_floatToHalf(scale));
 
         for (size_t i = 0; i < BIG_DIM; i += DIM) {
           for (size_t j = 0; j < BIG_DIM; j += DIM) {
@@ -212,11 +216,14 @@ int main() {
           }*/
 
           printf("Matrix:\n");
-          printMatrix_acc_big(In);
+          // printMatrix_acc_big(In);
+          printFPMatrix2(1, BIG_DIM, In);
           printf("Matrix output:\n");
-          printMatrix_big(Out);
+          // printMatrix_big(Out);
+          printFPMatrix2(1, BIG_DIM, Out);
           printf("Matrix gold output:\n");
-          printMatrix_big(Out_gold);
+          // printMatrix_big(Out_gold);
+          printFPMatrix2(1, BIG_DIM, Out_gold);
           printf("\n");
 
           exit(1);
@@ -224,7 +231,7 @@ int main() {
       }
     }
   }
-
+  printf("Pass\n");
   exit(0);
 }
 

@@ -46,6 +46,9 @@
 bool vec_is_equal_fp32(float *a, float *b, int len, float epsilon) {
     for (int i = 0; i < len; i++) {
         if (fabs(a[i] - b[i]) > epsilon) {
+            printf("vec is not equal here: %d\n",i);
+            NN_printFloat(a[i],6);
+            NN_printFloat(b[i],6);
             return false;
         }
     }
@@ -139,23 +142,11 @@ bool vec_is_equal(elem_t * a, elem_t * b, int len) {
 }
 
 
-// void init_random(elem_t * buf, int len) {
-//     for (elem_t * ptr = buf; ptr < buf + len; ptr++) {
-//         *ptr = NN_floatToHalf((rand() % 5) - 2.0);
-//     }
-// }
-
-
-void init_random(elem_t * buf, int row, int col, int stride){
-    elem_t i = 0;
-    for(int r = 0; r < row; r++){
-        for(int c = 0; c < col; c++){
-            elem_t * ptr = buf + r * stride + c;
-            *ptr = NN_floatToHalf((rand() % 5) - 2.0);
-        }
+void init_random(elem_t * buf, int len) {
+    for (elem_t * ptr = buf; ptr < buf + len; ptr++) {
+        *ptr = NN_floatToHalf((rand() % 5) - 2.0);
     }
 }
-
 
 void init_random_acc(acc_t * buf, int len) {
     for (acc_t * ptr = buf; ptr < buf + len; ptr++) {
@@ -188,10 +179,10 @@ int main() {
     static elem_t output[BATCH_SIZE][OUT_ROW_DIM][OUT_COL_DIM][OUT_STRIDE];
 
     printf("Randomize inputs...\n");
-    init_random(&input[0][0][0][0], BATCH_SIZE*IN_ROW_DIM*IN_COL_DIM, IN_CHANNELS, IN_STRIDE);
+    init_random(&input[0][0][0][0], BATCH_SIZE*IN_ROW_DIM*IN_COL_DIM);
 
     printf("Randomize weights...\n");
-    init_random(&weights[0][0][0][0], OUT_CHANNELS*KERNEL_DIM*KERNEL_DIM,IN_CHANNELS, IN_CHANNELS);
+    init_random(&weights[0][0][0][0], OUT_CHANNELS*KERNEL_DIM*KERNEL_DIM);
 
     printf("Randomize bias...\n");
     if (NO_BIAS)
@@ -243,8 +234,8 @@ int main() {
     assert(sizeof(output_mat) == sizeof(output));
 
 
-    static float output_fp32[BATCH_SIZE][OUT_ROW_DIM][OUT_COL_DIM][OUT_CHANNELS];
-    static float output_mat_fp32[N_PATCHES][OUT_CHANNELS];
+    static float output_fp32[BATCH_SIZE][OUT_ROW_DIM][OUT_COL_DIM][OUT_STRIDE];
+    static float output_mat_fp32[N_PATCHES][OUT_STRIDE];
 
     for (int i = 0; i < sizeof(output) / sizeof(elem_t); i++) {
         ((float *)output_fp32)[i] = NN_halfToFloat(((elem_t *)output)[i]);
@@ -258,59 +249,60 @@ int main() {
     if (!success) {
         // return 1;
 
-        printf("bias:\n");
-        for (int och = 0; och < OUT_CHANNELS; och++) {
-            printf(" ");
-            NN_printFloat(NN_halfToFloat(bias[och]), 3);
-        }
-        printf("\b\n\n");
+        // printf("bias:\n");
+        // for (int och = 0; och < OUT_CHANNELS; och++) {
+        //     printf(" ");
+        //     NN_printFloat(NN_halfToFloat(bias[och]), 3);
+        // }
+        // printf("\b\n\n");
 
-        printf("weights:\n");
-        for (int och = 0; och < OUT_CHANNELS; och++) {
-            printf("[");
-            for (int wrow = 0; wrow < KERNEL_DIM; wrow++) {
-                printf("[");
-                for (int wcol = 0; wcol < KERNEL_DIM; wcol++) {
-                    printf("[");
-                    for (int ich = 0; ich < IN_CHANNELS; ich++) {
-                        printf("%d,", weights[och][wrow][wcol][ich]);
-                    }
-                    printf("\b],");
-                }
-                printf("\b],\n");
-            }
-            printf("\b],");
-        }
-        printf("\b\n\n");
+        // printf("weights:\n");
+        // for (int och = 0; och < OUT_CHANNELS; och++) {
+        //     printf("[");
+        //     for (int wrow = 0; wrow < KERNEL_DIM; wrow++) {
+        //         printf("[");
+        //         for (int wcol = 0; wcol < KERNEL_DIM; wcol++) {
+        //             printf("[");
+        //             for (int ich = 0; ich < IN_CHANNELS; ich++) {
+        //                 //printf("%d,", weights[och][wrow][wcol][ich]);
+        //                 NN_printFloat(NN_halfToFloat(weights[och][wrow][wcol][ich]), 3);
+        //             }
+        //             printf("\b],");
+        //         }
+        //         printf("\b],\n");
+        //     }
+        //     printf("\b],");
+        // }
+        // printf("\b\n\n");
 
-        printf("weights_mat:\n");
-        for (int wrow = 0; wrow < KERNEL_DIM * KERNEL_DIM * IN_CHANNELS; wrow++) {
-            printf("[");
-            for (int wcol = 0; wcol < WEIGHT_STRIDE; wcol++) {
-                        printf(" ");
-                        NN_printFloat(NN_halfToFloat(weights[wrow][wcol]), 3);            }
-            printf("\b],\n");
-        }
-        printf("\b\n\n");
+        // printf("weights_mat:\n");
+        // for (int wrow = 0; wrow < KERNEL_DIM * KERNEL_DIM * IN_CHANNELS; wrow++) {
+        //     printf("[");
+        //     for (int wcol = 0; wcol < WEIGHT_STRIDE; wcol++) {
+        //                 printf(" ");
+        //                 NN_printFloat(NN_halfToFloat(weights[wrow][wcol]), 3);            }
+        //     printf("\b],\n");
+        // }
+        // printf("\b\n\n");
 
-        printf("input:\n");
-        for (int batch = 0; batch < BATCH_SIZE; batch++) {
-            printf("[");
-            for (int irow = 0; irow < IN_ROW_DIM; irow++) {
-                printf("[");
-                for (int icol = 0; icol < IN_COL_DIM; icol++) {
-                    printf("[");
-                    for (int ich = 0; ich < IN_STRIDE; ich++) {
-                        printf(" ");
-                        NN_printFloat(NN_halfToFloat(input[batch][irow][icol][ich]), 3);
-                    }
-                    printf("\b],");
-                }
-                printf("\b],\n");
-            }
-            printf("\b],");
-        }
-        printf("\b\n\n");
+        // printf("input:\n");
+        // for (int batch = 0; batch < BATCH_SIZE; batch++) {
+        //     printf("[");
+        //     for (int irow = 0; irow < IN_ROW_DIM; irow++) {
+        //         printf("[");
+        //         for (int icol = 0; icol < IN_COL_DIM; icol++) {
+        //             printf("[");
+        //             for (int ich = 0; ich < IN_STRIDE; ich++) {
+        //                 printf(" ");
+        //                 NN_printFloat(NN_halfToFloat(input[batch][irow][icol][ich]), 3);
+        //             }
+        //             printf("\b],");
+        //         }
+        //         printf("\b],\n");
+        //     }
+        //     printf("\b],");
+        // }
+        // printf("\b\n\n");
 
         printf("output:\n");
         for (int batch = 0; batch < BATCH_SIZE; batch++) {
@@ -321,26 +313,26 @@ int main() {
                     printf("[");
                     for (int och = 0; och < OUT_STRIDE; och++) {
                         printf(" ");
-                        NN_printFloat(NN_halfToFloat(output[batch][orow][ocol][och]),3);
+                        NN_printFloat(NN_halfToFloat(output[batch][orow][ocol][och]),6);
                     }
-                    printf("\b],\n");
+                    printf("],\n");
                 }
-                printf("\b],\n");
+                printf("],\n");
             }
-            printf("\b],");
+            printf("],");
         }
-        printf("\b\n\n");
+        printf("\n\n");
 
         printf("output_mat:\n");
         for (int orow = 0; orow < BATCH_SIZE * OUT_ROW_DIM * OUT_COL_DIM; orow++) {
             printf("[");
             for (int ocol = 0; ocol < OUT_STRIDE; ocol++) {
                 printf(" ");
-                NN_printFloat(NN_halfToFloat(output_mat[orow][ocol]),3);
+                NN_printFloat(NN_halfToFloat(output_mat[orow][ocol]),6);
             }
-            printf("\b],\n");
+            printf("],\n");
         }
-        printf("\b\n\n");
+        printf("\n\n");
 
         return 1;
     }

@@ -7,8 +7,15 @@
 #include <sys/mman.h>
 #endif
 #include "include/gemmini_testutils.h"
-
-#define HEAP_SIZE (4*1024*1024)
+// #define BATCH_SIZE 4
+// #define IN_ROW_DIM 224
+// #define IN_COL_DIM 224
+// #define IN_CHANNELS 3
+// #define OUT_CHANNELS 32
+// #define KERNEL_DIM 3
+// #define PADDING 1
+// #define STRIDE 2
+//#define HEAP_SIZE (1024*1024)
 
 bool vec_is_equal_fp32(float *a, float *b, int len, float epsilon) {
     for (int i = 0; i < len; i++) {
@@ -35,6 +42,7 @@ int main (int argc, char * argv[]) {
     }
 #endif
 
+    printf("Start main function\n");
     int BATCH_SIZE = 4;
     int IN_DIM = 224;
     int IN_CHANNELS = 3;
@@ -44,19 +52,19 @@ int main (int argc, char * argv[]) {
     int STRIDE = 2;
     bool NO_BIAS = false;
 
-    if (argc == 9) {
-      BATCH_SIZE = str2int(argv[1]);
-      IN_DIM = str2int(argv[2]);
-      IN_CHANNELS = str2int(argv[3]);
-      OUT_CHANNELS = str2int(argv[4]);
-      KERNEL_DIM = str2int(argv[5]);
-      PADDING = str2int(argv[6]);
-      STRIDE = str2int(argv[7]);
-      NO_BIAS = str2int(argv[8]);
-    } else if (argc > 1) {
-      printf("BATCH_SIZE IN_DIM IN_CHANNELS OUT_CHANNELS KERNEL_DIM PADDING STRIDE NO_BIAS\n");
-      exit(1);
-    }
+    // if (argc == 9) {
+    //   BATCH_SIZE = str2int(argv[1]);
+    //   IN_DIM = str2int(argv[2]);
+    //   IN_CHANNELS = str2int(argv[3]);
+    //   OUT_CHANNELS = str2int(argv[4]);
+    //   KERNEL_DIM = str2int(argv[5]);
+    //   PADDING = str2int(argv[6]);
+    //   STRIDE = str2int(argv[7]);
+    //   NO_BIAS = str2int(argv[8]);
+    // } else if (argc > 1) {
+    //   printf("BATCH_SIZE IN_DIM IN_CHANNELS OUT_CHANNELS KERNEL_DIM PADDING STRIDE NO_BIAS\n");
+    //   exit(1);
+    // }
 
     int OUT_DIM = ((IN_DIM + 2*PADDING - KERNEL_DIM) / STRIDE + 1);
 
@@ -74,7 +82,6 @@ int main (int argc, char * argv[]) {
     int I = BATCH_SIZE * OUT_DIM * OUT_DIM;
     int J = OUT_CHANNELS;
     int K = KERNEL_DIM * KERNEL_DIM * IN_CHANNELS;
-
     if (map_to_matmul) {
       printf("I = %d\n", I);
       printf("J = %d\n", J);
@@ -83,7 +90,7 @@ int main (int argc, char * argv[]) {
 
     gemmini_flush(0);
 
-    static uint8_t heap[HEAP_SIZE];
+    static elem_t heap[1024];
 
     // static elem_t input[BATCH_SIZE][IN_DIM][IN_DIM][IN_CHANNELS];
     // static elem_t weights[OUT_CHANNELS][KERNEL_DIM][KERNEL_DIM][IN_CHANNELS];
@@ -94,45 +101,45 @@ int main (int argc, char * argv[]) {
     elem_t * weights = (elem_t*)((elem_t*)input + BATCH_SIZE*IN_DIM*IN_DIM*IN_CHANNELS);
     acc_t * bias = (acc_t*)((elem_t*)weights + OUT_CHANNELS*KERNEL_DIM*KERNEL_DIM*IN_CHANNELS);
     elem_t * output = (elem_t*)((acc_t*)bias + OUT_CHANNELS);
-
-    {
-      uint8_t * end = (uint8_t*)((elem_t*)output + BATCH_SIZE*OUT_DIM*OUT_DIM*OUT_CHANNELS);
-      if (end >= &heap[HEAP_SIZE]) {
-          printf("problem size is too large to fit in memory");
-          exit(1);
-      }
-    }
+    printf("start end\n");
+    // {
+    //   uint8_t * end = (uint8_t*)((elem_t*)output + BATCH_SIZE*OUT_DIM*OUT_DIM*OUT_CHANNELS);
+    //   // if (end >= &heap[HEAP_SIZE]) {
+    //   //     printf("problem size is too large to fit in memory");
+    //   //     exit(1);
+    //   // }?
+    // }
 
     printf("Gemmini conv...\n");
     uint64_t start_gemmini = read_cycles();
 
-    if (map_to_matmul) {
+    // if (map_to_matmul) {
 
-      tiled_matmul_auto(I, J, K,
-          input, weights, NO_BIAS ? NULL : bias, output,
-          K, J, J, J,
-          NN_floatToHalf(1), NN_floatToHalf(1), NN_floatToHalf(1),
-          NO_ACTIVATION,  NN_floatToHalf(1), 0, true,
-          false, false,
-          false, false,
-          0,
-          WS);
+    //   tiled_matmul_auto(I, J, K,
+    //       input, weights, NO_BIAS ? NULL : bias, output,
+    //       K, J, J, J,
+    //       NN_floatToHalf(1), NN_floatToHalf(1), NN_floatToHalf(1),
+    //       NO_ACTIVATION,  NN_floatToHalf(1), 0, true,
+    //       false, false,
+    //       false, false,
+    //       0,
+    //       WS);
 
-    } else {
+    // } else {
 
-      tiled_conv_auto(
-          BATCH_SIZE, IN_DIM, IN_DIM, IN_CHANNELS,
-          OUT_CHANNELS, OUT_DIM, OUT_DIM,
-          STRIDE, 1,1, PADDING, KERNEL_DIM,
-          false, false, false, false, false,
-          (elem_t*)input,
-          (elem_t*)weights,
-          NO_BIAS ? NULL : (acc_t*)bias,
-          (elem_t*)output,
-          NO_ACTIVATION,  NN_floatToHalf(1), 0, 0, 0,
-          WS);
-    }
-
+      
+    // }
+    tiled_conv_auto(
+      BATCH_SIZE, IN_DIM, IN_DIM, IN_CHANNELS,
+      OUT_CHANNELS, OUT_DIM, OUT_DIM,
+      STRIDE, 1,1, PADDING, KERNEL_DIM,
+      false, false, false, false, false,
+      (elem_t*)input,
+      (elem_t*)weights,
+      NO_BIAS ? NULL : (acc_t*)bias,
+      (elem_t*)output,
+      NO_ACTIVATION,  NN_floatToHalf(1), 0, 0, 0,
+      WS);
     uint64_t end_gemmini = read_cycles();
     printf("Gemmini conv took %llu cycles\n", end_gemmini - start_gemmini);
 

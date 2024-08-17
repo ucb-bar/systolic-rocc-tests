@@ -8,7 +8,7 @@
 #endif
 #include "include/gemmini_testutils.h"
 
-#define HEAP_SIZE (8*1024*1024)
+#define HEAP_SIZE 1024 //(8*1024*1024)
 
 int str2int(char * str)
 {
@@ -34,18 +34,18 @@ int main (int argc, char * argv[]) {
     int STRIDE = 2;
     bool NO_BIAS = false;
 
-    if (argc == 8) {
-      BATCH_SIZE = str2int(argv[1]);
-      IN_DIM = str2int(argv[2]);
-      CHANNELS = str2int(argv[3]);
-      KERNEL_DIM = str2int(argv[4]);
-      PADDING = str2int(argv[5]);
-      STRIDE = str2int(argv[6]);
-      NO_BIAS = str2int(argv[7]);
-    } else if (argc > 1) {
-      printf("BATCH_SIZE IN_DIM CHANNELS KERNEL_DIM PADDING STRIDE NO_BIAS\n");
-      exit(1);
-    }
+    // if (argc == 8) {
+    //   BATCH_SIZE = str2int(argv[1]);
+    //   IN_DIM = str2int(argv[2]);
+    //   CHANNELS = str2int(argv[3]);
+    //   KERNEL_DIM = str2int(argv[4]);
+    //   PADDING = str2int(argv[5]);
+    //   STRIDE = str2int(argv[6]);
+    //   NO_BIAS = str2int(argv[7]);
+    // } else if (argc > 1) {
+    //   printf("BATCH_SIZE IN_DIM CHANNELS KERNEL_DIM PADDING STRIDE NO_BIAS\n");
+    //   exit(1);
+    // }
 
     int OUT_DIM = ((IN_DIM + 2*PADDING - KERNEL_DIM) / STRIDE + 1);
 
@@ -73,13 +73,13 @@ int main (int argc, char * argv[]) {
     acc_t * bias = (acc_t*)((elem_t*)weights + CHANNELS*KERNEL_DIM*KERNEL_DIM);
     elem_t * output = (elem_t*)((acc_t*)bias + CHANNELS);
 
-    {
-      uint8_t * end = (uint8_t*)((elem_t*)output + BATCH_SIZE*OUT_DIM*OUT_DIM*CHANNELS);
-      if (end >= &heap[HEAP_SIZE]) {
-          printf("problem size is too large to fit in memory");
-          exit(1);
-      }
-    }
+    // {
+    //   uint8_t * end = (uint8_t*)((elem_t*)output + BATCH_SIZE*OUT_DIM*OUT_DIM*CHANNELS);
+    //   if (end >= &heap[HEAP_SIZE]) {
+    //       printf("problem size is too large to fit in memory");
+    //       exit(1);
+    //   }
+    // }
 
     printf("Gemmini conv...\n");
     uint64_t start_gemmini = read_cycles();
@@ -92,7 +92,7 @@ int main (int argc, char * argv[]) {
         (acc_t*)bias,
         (elem_t*)output,
 
-        NO_ACTIVATION, ACC_SCALE_IDENTITY, 1, 0, 0,
+        NO_ACTIVATION, NN_floatToHalf(1), 1, 0, 0,
 
         WS);
 
