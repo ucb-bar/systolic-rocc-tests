@@ -25,4 +25,6 @@ jobs:
       - name: Run tiled matmul tests (MLIR)
         run: |
           cd bareMetalMLIR && make all run
-
+      - name: Run tiled matmul tests (MLIR with accfg)
+        run: |
+          cd bareMetalMLIR && make run-accfg
