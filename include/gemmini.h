@@ -370,6 +370,79 @@ static void counter_reset() {
       k_LOOP_CONV_WS) \
   }
 
+// defined functions
+
+#define config_ex(dataflow, act, A_stride, A_transpose, B_transpose) gemmini_extended_config_ex(dataflow, act, 0, A_stride, A_transpose, B_transpose)
+// #define config_ex(dataflow, act, A_transpose, B_transpose) gemmini_extended_config_ex(dataflow, act, 0, 1, A_transpose, B_transpose)
+// configure the state of the accelerator
+// dataflow is WEIGHT_STATIONARY or OUTPUT_STATIONARY
+// act is the activation function, options are NO_ACTIVATION, RELU, LAYERNORM, IGELU, SOFTMAX
+// A_transpose is a boolean value that represents whether the matrix A is transposed
+// B_transpose is a boolean value that represents whether the matrix B is transposed
+ 
+ #define config_ld(cols, scale, id) gemmini_extended3_config_ld(cols, scale, false, id)
+// configure mvin instructions
+// cols = number of cols in matrix in DRAM
+// id = id of mvin instruction; id = 0 for mvin, 1 for mvin2, 2 for mvin3
+
+#define mvin(dram_addr, spad_addr, cols, rows) gemmini_extended_mvin(dram_addr, spad_addr, cols, rows)
+// mvin from DRAM to scratchpad
+// mvin, configured by config_ld(..., 0)
+// requires rows must be less than or equal to DIM
+
+#define mvin2(dram_addr, spad_addr, cols, rows) gemmini_extended_mvin2(dram_addr, spad_addr, cols, rows)
+// mvin from DRAM to scratchpad
+// mvin2, configured by config_ld(..., 1)
+// requires rows must be less than or equal to DIM
+
+#define mvin3(dram_addr, spad_addr, cols, rows) gemmini_extended_mvin3(dram_addr, spad_addr, cols, rows)
+// mvin from DRAM to scratchpad
+// mvin3, configured by config_ld(..., 2)
+// requires rows must be less than or equal to DIM
+
+// A = input matrix
+// B = weight matrix
+// C = output matrix
+// assume a weight-stationary dataflow
+
+#define preload(B_spad_addr, C_acc_addr, B_cols, B_rows, C_cols, C_rows) gemmini_extended_preload(B_spad_addr, C_acc_addr, B_cols, B_rows, C_cols, C_rows)
+// preload weights, B
+// B must be preloaded before compute
+// B must have been moved in to the scratchpad first
+// B_cols must be less than or equal to DIM, B_rows must be less than or equal to DIM, C_cols must be less than or equal to DIM, C_rows must be less than or equal to DIM
+// must run to change the output address to C_acc_addr 
+// B_spad_addr = 0xffffffff if B already preloaded
+
+#define preload_zeros(C_acc_addr) gemmini_preload_zeros(C_acc_addr)
+// preload zeros to the systolic array and set the output address in the accumulator to C_acc_addr
+
+#define compute_preloaded(A_spad_addr, bias_spad_addr, A_cols, A_rows, bias_cols, bias_rows) gemmini_extended_compute_preloaded(A_spad_addr, bias_spad_addr, A_cols, A_rows, bias_cols, bias_rows)
+// compute
+// A must have been moved in to the scratchpad first
+// first compute after preload, does not accumulate C
+// A_cols must be less than or equal to DIM, A_rows must be less than or equal to DIM, bias_cols must be less than or equal to DIM, bias_rows must be less than or equal to DIM
+// bias_spad_addr = 0xffffffff if no bias
+// if there is a bias, bias_cols and bias_rows are probably equal to B_cols and B_rows from preload instruction
+
+#define compute_accumulated(A_spad_addr, bias_spad_addr, A_cols, A_rows, bias_cols, bias_rows) gemmini_extended_compute_accumulated(A_spad_addr, bias_spad_addr, A_cols, A_rows, bias_cols, bias_rows)
+// compute
+// A must have been moved in to the scratchpad first
+// accumulates to same C as previous compute 
+// A_cols must be less than or equal to DIM, A_rows must be less than or equal to DIM, bias_cols must be less than or equal to DIM, bias_rows must be less than or equal to DIM
+// bias_spad_addr = 0xffffffff if no bias
+// if there is a bias, bias_cols and bias_rows are probably equal to B_cols and B_rows from preload instruction
+
+#define config_st(cols) gemmini_config_st(cols)
+// configure mvout instruction
+// cols = number of columns of matrix in DRAM
+
+#define mvout(dram_addr, acc_addr, cols, rows) gemmini_extended_mvout(dram_addr, acc_addr, cols, rows)
+// mvout from accumulator to DRAM
+// requires rows must be less than or equal to DIM
+
+// fence
+#define fence() asm volatile("fence")
+
 // Tiling functions
 static void sp_tiled_matmul_os(const elem_t * A, const elem_t * B, const void * D, void * C,
         scale_t A_scale_factor, scale_t B_scale_factor, scale_acc_t D_scale_factor,
@@ -812,6 +885,58 @@ static void tiled_matmul_outer(size_t dim_I, size_t dim_J, size_t dim_K,
   gemmini_fence();
 }
 
+static void tiled_matmul_outer_eigen(
+        const elem_t *A,
+        const elem_t *B,
+        void *C,
+        size_t i, size_t k, size_t j,
+        bool transpose_A, bool transpose_B) 
+    {
+            // int tile_I = (i + DIM - 1) / DIM;
+            // int tile_J = (j + DIM - 1) / DIM;
+            // int tile_K = (k + DIM - 1) / DIM;
+            int tile_I = 32;
+            int tile_J = 16;
+            int tile_K = 32;
+            tiled_matmul_outer(i, j, k,
+                    A, B, NULL, C,
+                    transpose_A ? i : k, transpose_B ? k : j, j, j,
+                    MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY,
+                    tile_I, tile_J, tile_K,
+                    NO_ACTIVATION, ACC_SCALE_IDENTITY, 0, false,
+                    transpose_A, transpose_B,
+                    false, false,
+                    0,
+                    WEIGHT_STATIONARY
+                    );
+    }
+static void tiled_matmul_outer_eigen_bias(
+        const elem_t *A,
+        const elem_t *B,
+        void *D,
+        void *C,
+        size_t i, size_t k, size_t j,
+        bool transpose_A, bool transpose_B, 
+        bool sub) 
+    {
+            // int tile_I = (i + DIM - 1) / DIM;
+            // int tile_J = (j + DIM - 1) / DIM;
+            // int tile_K = (k + DIM - 1) / DIM;
+            int tile_I = 32;
+            int tile_J = 32;
+            int tile_K = 32;
+            tiled_matmul_outer(i, j, k,
+                    A, B, D, C,
+                    transpose_A ? i : k, transpose_B ? k : j, j, j,
+                    MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY, sub ? -MVIN_SCALE_IDENTITY : MVIN_SCALE_IDENTITY,
+                    tile_I, tile_J, tile_K,
+                    NO_ACTIVATION, ACC_SCALE_IDENTITY, 0, false,
+                    transpose_A, transpose_B,
+                    false, false,
+                    0,
+                    WEIGHT_STATIONARY
+                    );
+    }
 
 static acc_t int_sqrt(acc_t n) {
   if (n == 0) return 0;
@@ -982,93 +1107,93 @@ static void matmul_cpu(bool transA, bool transB, size_t DIM_I, size_t DIM_J, siz
       }
     }
   } else {
-    size_t A_dim_strides[2] = {!transA ? stride_A : 1, !transA ? 1 : stride_A}; // i, j stride
-    size_t B_dim_strides[2] = {!transB ? 1 : stride_B, !transB ? stride_B : 1}; // j, k stride
+    // size_t A_dim_strides[2] = {!transA ? stride_A : 1, !transA ? 1 : stride_A}; // i, j stride
+    // size_t B_dim_strides[2] = {!transB ? 1 : stride_B, !transB ? stride_B : 1}; // j, k stride
 
-    // We also create a buffer that we can use for layernorms and softmaxes
-    static acc_t c_buffer[1024];
-    const size_t c_buffer_sz = sizeof(c_buffer)/sizeof(c_buffer[0]);
-    if ((act == LAYERNORM || act == SOFTMAX) && DIM_J > c_buffer_sz) {
-      printf("Matmul is too large to normalize\n");
-      exit(1);
-    }
+    // // We also create a buffer that we can use for layernorms and softmaxes
+    // static acc_t c_buffer[1024];
+    // const size_t c_buffer_sz = sizeof(c_buffer)/sizeof(c_buffer[0]);
+    // if ((act == LAYERNORM || act == SOFTMAX) && DIM_J > c_buffer_sz) {
+    //   printf("Matmul is too large to normalize\n");
+    //   exit(1);
+    // }
 
-    for (size_t i = 0; i < DIM_I; i++) {
-      for (size_t j = 0; j < DIM_J; j++) {
-        elem_t* c = C + (i * stride_C) + j;
+    // for (size_t i = 0; i < DIM_I; i++) {
+    //   for (size_t j = 0; j < DIM_J; j++) {
+    //     elem_t* c = C + (i * stride_C) + j;
 
-        const size_t bias_row = repeating_bias ? 0 : i;
-        acc_t sum = no_bias ? 0 : GEMMINI_ACC_SCALE(*(D + bias_row * stride_D + j), D_scale_factor);
+    //     const size_t bias_row = repeating_bias ? 0 : i;
+    //     acc_t sum = no_bias ? 0 : GEMMINI_ACC_SCALE(*(D + bias_row * stride_D + j), D_scale_factor);
 
-        for (size_t k = 0; k < DIM_K; k++) {
-          const elem_t* a = A + i * A_dim_strides[0] + k * A_dim_strides[1];
-          const elem_t* b = B + j * B_dim_strides[0] + k * B_dim_strides[1];
-          sum += (GEMMINI_SCALE(*a, A_scale_factor) * GEMMINI_SCALE(*b, B_scale_factor));
-        }
+    //     for (size_t k = 0; k < DIM_K; k++) {
+    //       const elem_t* a = A + i * A_dim_strides[0] + k * A_dim_strides[1];
+    //       const elem_t* b = B + j * B_dim_strides[0] + k * B_dim_strides[1];
+    //       sum += (GEMMINI_SCALE(*a, A_scale_factor) * GEMMINI_SCALE(*b, B_scale_factor));
+    //     }
 
-        if (act == LAYERNORM || act == SOFTMAX)
-          c_buffer[j] = sum;
-        else
-          *c = scale_and_sat(sum, act, scale, bert_scale);
-      }
+    //     if (act == LAYERNORM || act == SOFTMAX)
+    //       c_buffer[j] = sum;
+    //     else
+    //       *c = scale_and_sat(sum, act, scale, bert_scale);
+    //   }
 
-      if (act == LAYERNORM) {
-        acc_t sum = 0;
-        for (size_t j = 0; j < DIM_J; j++)
-          sum += c_buffer[j];
-        acc_t mean = sum / (acc_t)DIM_J;
+    //   if (act == LAYERNORM) {
+    //     acc_t sum = 0;
+    //     for (size_t j = 0; j < DIM_J; j++)
+    //       sum += c_buffer[j];
+    //     acc_t mean = sum / (acc_t)DIM_J;
 
-        acc_t total_err_sq = 0;
-        for (size_t j = 0; j < DIM_J; j++)
-          total_err_sq += (c_buffer[j] - mean)*(c_buffer[j] - mean);
-        acc_t variance = total_err_sq / (acc_t)DIM_J;
+    //     acc_t total_err_sq = 0;
+    //     for (size_t j = 0; j < DIM_J; j++)
+    //       total_err_sq += (c_buffer[j] - mean)*(c_buffer[j] - mean);
+    //     acc_t variance = total_err_sq / (acc_t)DIM_J;
 
-        acc_t stddev = int_sqrt(variance);
-        if (variance == 0) stddev = 1;
+    //     acc_t stddev = int_sqrt(variance);
+    //     if (variance == 0) stddev = 1;
 
-        for (size_t j = 0; j < DIM_J; j++) {
-          c_buffer[j] -= mean;
-          c_buffer[j] /= stddev;
+    //     for (size_t j = 0; j < DIM_J; j++) {
+    //       c_buffer[j] -= mean;
+    //       c_buffer[j] /= stddev;
 
-          elem_t* c = C + (i * stride_C) + j;
-          *c = scale_and_sat(c_buffer[j], act, scale, bert_scale);
-        }
-      } else if (act == SOFTMAX) {
-        const scale_t a = 0.3585;
-        const scale_t b = 1.353;
-        const scale_t c = 0.344;
+    //       elem_t* c = C + (i * stride_C) + j;
+    //       *c = scale_and_sat(c_buffer[j], act, scale, bert_scale);
+    //     }
+    //   } else if (act == SOFTMAX) {
+    //     const scale_t a = 0.3585;
+    //     const scale_t b = 1.353;
+    //     const scale_t c = 0.344;
 
-        // is SCALE supposed to be input scale?
-        const acc_t qln2 = (acc_t) (0.693147 / bert_scale);
-        const acc_t qln2_inv = 65536 / qln2;
-        const acc_t qb = b / bert_scale;
-        const acc_t qc = c / (a*bert_scale*bert_scale);
+    //     // is SCALE supposed to be input scale?
+    //     const acc_t qln2 = (acc_t) (0.693147 / bert_scale);
+    //     const acc_t qln2_inv = 65536 / qln2;
+    //     const acc_t qb = b / bert_scale;
+    //     const acc_t qc = c / (a*bert_scale*bert_scale);
 
-        // pass 1: get max_q
-        acc_t max_q = -2147483648;
-        for (size_t j = 0; j < DIM_J; j++) {
-          if (c_buffer[j] > max_q) max_q = c_buffer[j];
-        }
+    //     // pass 1: get max_q
+    //     acc_t max_q = -2147483648;
+    //     for (size_t j = 0; j < DIM_J; j++) {
+    //       if (c_buffer[j] > max_q) max_q = c_buffer[j];
+    //     }
 
-        // pass 2: calculate iexp(q_tilde) and sum(q_tilde)
-        acc_t sum_exp = 0;
-        for (size_t j = 0; j < DIM_J; j++) {
-          acc_t q = c_buffer[j] - max_q;
-          acc_t z = (acc_t) (-q * qln2_inv) >> 16;
-          acc_t qp = q + z * qln2;
-          acc_t q_exp = (qp + qb)*(qp + qb) + qc;
-          c_buffer[j] = q_exp >> z;
-          sum_exp += c_buffer[j];
-        }
+    //     // pass 2: calculate iexp(q_tilde) and sum(q_tilde)
+    //     acc_t sum_exp = 0;
+    //     for (size_t j = 0; j < DIM_J; j++) {
+    //       acc_t q = c_buffer[j] - max_q;
+    //       acc_t z = (acc_t) (-q * qln2_inv) >> 16;
+    //       acc_t qp = q + z * qln2;
+    //       acc_t q_exp = (qp + qb)*(qp + qb) + qc;
+    //       c_buffer[j] = q_exp >> z;
+    //       sum_exp += c_buffer[j];
+    //     }
 
-        // pass 3: divide by sum
-        scale_t factor = (127.f) / (float) sum_exp; // what corresponds to 1 in output?
-        for (size_t j = 0; j < DIM_J; j++) {
-          elem_t* c = C + (i * stride_C) + j;
-          *c = scale_and_sat(c_buffer[j], act, factor, bert_scale);
-        }
-      }
-    }
+    //     // pass 3: divide by sum
+    //     scale_t factor = (127.f) / (float) sum_exp; // what corresponds to 1 in output?
+    //     for (size_t j = 0; j < DIM_J; j++) {
+    //       elem_t* c = C + (i * stride_C) + j;
+    //       *c = scale_and_sat(c_buffer[j], act, factor, bert_scale);
+    //     }
+    //   }
+    // }
   }
 }
 
