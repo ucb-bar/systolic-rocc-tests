@@ -376,6 +376,79 @@ int ceil_divide_int(int a, int b){
       k_LOOP_CONV_WS) \
   }
 
+// defined functions
+
+#define config_ex(dataflow, act, A_stride, A_transpose, B_transpose) gemmini_extended_config_ex(dataflow, act, 0, A_stride, A_transpose, B_transpose)
+// #define config_ex(dataflow, act, A_transpose, B_transpose) gemmini_extended_config_ex(dataflow, act, 0, 1, A_transpose, B_transpose)
+// configure the state of the accelerator
+// dataflow is WEIGHT_STATIONARY or OUTPUT_STATIONARY
+// act is the activation function, options are NO_ACTIVATION, RELU, LAYERNORM, IGELU, SOFTMAX
+// A_transpose is a boolean value that represents whether the matrix A is transposed
+// B_transpose is a boolean value that represents whether the matrix B is transposed
+ 
+ #define config_ld(cols, scale, id) gemmini_extended3_config_ld(cols, scale, false, id)
+// configure mvin instructions
+// cols = number of cols in matrix in DRAM
+// id = id of mvin instruction; id = 0 for mvin, 1 for mvin2, 2 for mvin3
+
+#define mvin(dram_addr, spad_addr, cols, rows) gemmini_extended_mvin(dram_addr, spad_addr, cols, rows)
+// mvin from DRAM to scratchpad
+// mvin, configured by config_ld(..., 0)
+// requires rows must be less than or equal to DIM
+
+#define mvin2(dram_addr, spad_addr, cols, rows) gemmini_extended_mvin2(dram_addr, spad_addr, cols, rows)
+// mvin from DRAM to scratchpad
+// mvin2, configured by config_ld(..., 1)
+// requires rows must be less than or equal to DIM
+
+#define mvin3(dram_addr, spad_addr, cols, rows) gemmini_extended_mvin3(dram_addr, spad_addr, cols, rows)
+// mvin from DRAM to scratchpad
+// mvin3, configured by config_ld(..., 2)
+// requires rows must be less than or equal to DIM
+
+// A = input matrix
+// B = weight matrix
+// C = output matrix
+// assume a weight-stationary dataflow
+
+#define preload(B_spad_addr, C_acc_addr, B_cols, B_rows, C_cols, C_rows) gemmini_extended_preload(B_spad_addr, C_acc_addr, B_cols, B_rows, C_cols, C_rows)
+// preload weights, B
+// B must be preloaded before compute
+// B must have been moved in to the scratchpad first
+// B_cols must be less than or equal to DIM, B_rows must be less than or equal to DIM, C_cols must be less than or equal to DIM, C_rows must be less than or equal to DIM
+// must run to change the output address to C_acc_addr 
+// B_spad_addr = 0xffffffff if B already preloaded
+
+#define preload_zeros(C_acc_addr) gemmini_preload_zeros(C_acc_addr)
+// preload zeros to the systolic array and set the output address in the accumulator to C_acc_addr
+
+#define compute_preloaded(A_spad_addr, bias_spad_addr, A_cols, A_rows, bias_cols, bias_rows) gemmini_extended_compute_preloaded(A_spad_addr, bias_spad_addr, A_cols, A_rows, bias_cols, bias_rows)
+// compute
+// A must have been moved in to the scratchpad first
+// first compute after preload, does not accumulate C
+// A_cols must be less than or equal to DIM, A_rows must be less than or equal to DIM, bias_cols must be less than or equal to DIM, bias_rows must be less than or equal to DIM
+// bias_spad_addr = 0xffffffff if no bias
+// if there is a bias, bias_cols and bias_rows are probably equal to B_cols and B_rows from preload instruction
+
+#define compute_accumulated(A_spad_addr, bias_spad_addr, A_cols, A_rows, bias_cols, bias_rows) gemmini_extended_compute_accumulated(A_spad_addr, bias_spad_addr, A_cols, A_rows, bias_cols, bias_rows)
+// compute
+// A must have been moved in to the scratchpad first
+// accumulates to same C as previous compute 
+// A_cols must be less than or equal to DIM, A_rows must be less than or equal to DIM, bias_cols must be less than or equal to DIM, bias_rows must be less than or equal to DIM
+// bias_spad_addr = 0xffffffff if no bias
+// if there is a bias, bias_cols and bias_rows are probably equal to B_cols and B_rows from preload instruction
+
+#define config_st(cols) gemmini_config_st(cols)
+// configure mvout instruction
+// cols = number of columns of matrix in DRAM
+
+#define mvout(dram_addr, acc_addr, cols, rows) gemmini_extended_mvout(dram_addr, acc_addr, cols, rows)
+// mvout from accumulator to DRAM
+// requires rows must be less than or equal to DIM
+
+// fence
+#define fence() asm volatile("fence")
+
 // Tiling functions
 static void sp_tiled_matmul_os(const elem_t * A, const elem_t * B, const void * D, void * C,
         scale_t A_scale_factor, scale_t B_scale_factor, scale_acc_t D_scale_factor,
@@ -833,6 +906,58 @@ static void tiled_matmul_outer(size_t dim_I, size_t dim_J, size_t dim_K,
   gemmini_fence();
 }
 
+static void tiled_matmul_outer_eigen(
+        const elem_t *A,
+        const elem_t *B,
+        void *C,
+        size_t i, size_t k, size_t j,
+        bool transpose_A, bool transpose_B) 
+    {
+            // int tile_I = (i + DIM - 1) / DIM;
+            // int tile_J = (j + DIM - 1) / DIM;
+            // int tile_K = (k + DIM - 1) / DIM;
+            int tile_I = 32;
+            int tile_J = 16;
+            int tile_K = 32;
+            tiled_matmul_outer(i, j, k,
+                    A, B, NULL, C,
+                    transpose_A ? i : k, transpose_B ? k : j, j, j,
+                    MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY,
+                    tile_I, tile_J, tile_K,
+                    NO_ACTIVATION, ACC_SCALE_IDENTITY, 0, false,
+                    transpose_A, transpose_B,
+                    false, false,
+                    0,
+                    WEIGHT_STATIONARY
+                    );
+    }
+static void tiled_matmul_outer_eigen_bias(
+        const elem_t *A,
+        const elem_t *B,
+        void *D,
+        void *C,
+        size_t i, size_t k, size_t j,
+        bool transpose_A, bool transpose_B, 
+        bool sub) 
+    {
+            // int tile_I = (i + DIM - 1) / DIM;
+            // int tile_J = (j + DIM - 1) / DIM;
+            // int tile_K = (k + DIM - 1) / DIM;
+            int tile_I = 32;
+            int tile_J = 32;
+            int tile_K = 32;
+            tiled_matmul_outer(i, j, k,
+                    A, B, D, C,
+                    transpose_A ? i : k, transpose_B ? k : j, j, j,
+                    MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY, sub ? -MVIN_SCALE_IDENTITY : MVIN_SCALE_IDENTITY,
+                    tile_I, tile_J, tile_K,
+                    NO_ACTIVATION, ACC_SCALE_IDENTITY, 0, false,
+                    transpose_A, transpose_B,
+                    false, false,
+                    0,
+                    WEIGHT_STATIONARY
+                    );
+    }
 
 static acc_t int_sqrt(acc_t n) {
   if (n == 0) return 0;
@@ -1749,7 +1874,6 @@ static void sp_tiled_conv(
       }
 
       gemmini_extended_config_st(out_channels * sizeof(elem_t), act, scale);
-<<<<<<< HEAD
       */
 //    }
 //  } 
