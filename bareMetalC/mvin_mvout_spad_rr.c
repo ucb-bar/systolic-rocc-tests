@@ -100,7 +100,7 @@ int main() {
     printf("Mvin %d\n", n+1);
     gemmini_mvin(In[(n+1)], (n+1)*DIM);
     printf("Mvout spad->spad%d\n", n+1);
-    gemmini_mvout(0x1000000, (n)*DIM);
+    gemmini_mvout(0x1000000, (n+1)*DIM);
     rr_fence(cfgid1);
     printf("Mvout %d\n", n+1);
     gemmini_mvout(Out[n], (n+1)*DIM);
@@ -119,9 +119,9 @@ int main() {
   printf("Done");
 
   for (size_t n = 0; n < N-1; ++n)
-    if (!is_equal(In[n], Out[n])) {
+    if (!is_equal(In[n+1], Out[n])) {
       printf("Matrix %u:\n", n);
-      printMatrix(In[n]);
+      printMatrix(In[n+1]);
       printf("Matrix %u output:\n", n);
       printMatrix(Out[n]);
       printf("\n");
@@ -131,4 +131,3 @@ int main() {
 
   exit(0);
 }
-

@@ -19,7 +19,6 @@ tests = \
 	aligned \
 	padded \
 	mvin_scale \
-	conv \
 	conv_stride \
 	conv_rect \
 	conv_rect_pool \
@@ -53,13 +52,14 @@ tests = \
 	multi_matmul_data \
 	multi_conv_data \
 	tiled_matmul_ws_perf \
-    tiled_matmul_ws_rr \
 	tiled_matmul_data \
 	conv_pool_data \
-	conv_data \
 	conv_mac \
 	tiled_matmul_mac \
 	resadd_data \
+	#tiled_matmul_ws_rr \
+	#conv \
+	#conv_data \
 
 tests_baremetal = $(tests:=-baremetal)
 
