@@ -8,9 +8,10 @@
 #ifndef BAREMETAL
 #include <sys/mman.h>
 #endif
+#define FLOAT false
 #include "include/gemmini_testutils.h"
 
-#define CHECK_RESULT 0 // 1
+#define CHECK_RESULT 1
 
 #ifndef BAREMETAL
 
@@ -18,14 +19,17 @@
 #define MAT_DIM_J 512
 
 #else
-#define MAT_DIM_I 35
-#define MAT_DIM_J 27
+#define MAT_DIM_I 128
+#define MAT_DIM_J 196//(128+64)
 #endif
 
 #define A_SCALE 2
 #define B_SCALE MVIN_SCALE_IDENTITY
 #define C_SCALE ACC_SCALE_IDENTITY
 #define USE_RELU true
+
+#define NUM_INT 4
+#define NUM_FP 2
 
 void full_printMatrix(elem_t m[MAT_DIM_I][MAT_DIM_J]) {
   for (size_t i = 0; i < MAT_DIM_I; ++i) {
@@ -53,11 +57,21 @@ int main() {
 
     printf("I: %d, J: %d\n", MAT_DIM_I, MAT_DIM_J);
 
+    int cfgid = 0;
+    int i = 0;
+    //for(int i = 0; i < 2; i++){
+        bool acquired = rr_acquire_single(cfgid, i);
+        if(acquired){
+            printf("gemmini %d acquired to cfgid %d\n", i, cfgid);
+            //break;
+        }
+    //}
+    rr_set_opc(XCUSTOM_ACC, cfgid);
     gemmini_flush(0);
 
-    static elem_t A[MAT_DIM_I][MAT_DIM_J] row_align(1);
-    static elem_t B[MAT_DIM_I][MAT_DIM_J] row_align(1);
-    static elem_t C[MAT_DIM_I][MAT_DIM_J] row_align(1);
+    static elem_t A[MAT_DIM_I][MAT_DIM_J] row_align(MAX_BLOCK_LEN);
+    static elem_t B[MAT_DIM_I][MAT_DIM_J] row_align(MAX_BLOCK_LEN);
+    static elem_t C[MAT_DIM_I][MAT_DIM_J] row_align(MAX_BLOCK_LEN);
     static elem_t gold[MAT_DIM_I][MAT_DIM_J];
 
 #if CHECK_RESULT == 1
@@ -69,22 +83,24 @@ int main() {
       }
     }
 
-    printf("Starting slow CPU resadd\n");
-    unsigned long cpu_start = read_cycles();
-    resadd_cpu(MAT_DIM_I, MAT_DIM_J, A_SCALE, B_SCALE, C_SCALE, (elem_t*)A, (elem_t*)B,
-            (elem_t*)gold, USE_RELU);
-    unsigned long cpu_end = read_cycles();
-    printf("Cycles taken: %u\n", cpu_end-cpu_start);
 #endif
 
     printf("Starting gemmini resadd\n");
     unsigned long start = read_cycles();
     tiled_resadd_auto(MAT_DIM_I, MAT_DIM_J, A_SCALE, B_SCALE, C_SCALE, (elem_t*)A, (elem_t*)B,
             (elem_t*)C, USE_RELU, WS);
+    rr_fence(cfgid);
     unsigned long end = read_cycles();
     printf("Cycles taken: %u\n", end-start);
+    rr_release(cfgid);
 
 #if CHECK_RESULT == 1
+    printf("Starting slow CPU resadd\n");
+    unsigned long cpu_start = read_cycles();
+    resadd_cpu(MAT_DIM_I, MAT_DIM_J, MAT_DIM_J, A_SCALE, B_SCALE, C_SCALE, (elem_t*)A, (elem_t*)B,
+            (elem_t*)gold, USE_RELU);
+    unsigned long cpu_end = read_cycles();
+    printf("Cycles taken: %u\n", cpu_end-cpu_start);
     if (!full_is_equal(C, gold)) {
       printf("C:\n");
       full_printMatrix(C);

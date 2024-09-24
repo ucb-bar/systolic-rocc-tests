@@ -65,6 +65,16 @@
 #define PATCH_SIZE (KERNEL_DIM * KERNEL_DIM * IN_CHANNELS)
 #define N_PATCHES (BATCH_SIZE * OUT_ROW_DIM * OUT_COL_DIM)
 
+
+bool vec_is_equal_fp32(float *a, float *b, int len, float epsilon) {
+    for (int i = 0; i < len; i++) {
+        if (fabs(a[i] - b[i]) > epsilon) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void conv(int batch_size, int in_channels,
         int in_row_dim, int in_col_dim,
         int out_channels, int kernel_dim,
@@ -125,9 +135,10 @@ void conv(int batch_size, int in_channels,
                                     icol < 0 || icol >= in_col_dim_dilated ?
                                     0 : dilated[b][irow][icol][kch];
 
-                                result +=
-                                    weights[och][krow][kcol][kch] *
-                                    pixel;
+                                // result should be a fp16 value
+                                result = NN_floatToHalf(NN_halfToFloat(result) + NN_halfToFloat(weights[och][krow][kcol][kch]) * NN_halfToFloat(pixel));
+                                // result += NN_halfToFloat(weights[och][krow][kcol][kch]) * NN_halfToFloat(pixel);
+
                             }
                         }
                     }
@@ -173,26 +184,14 @@ bool vec_is_equal(elem_t * a, elem_t * b, int len) {
 }
 
 void init_random(elem_t * buf, int len) {
-    elem_t i = 0;
     for (elem_t * ptr = buf; ptr < buf + len; ptr++) {
-        // *ptr = (rand() % 32) - 16;
-#ifdef FAST
-      *ptr = 1;
-#else
-      *ptr = (rand() % 5) - 2;
-#endif
+        *ptr = NN_floatToHalf((rand() % 5) - 2.0);
     }
 }
 
 void init_random_acc(acc_t * buf, int len) {
-    elem_t i = 0;
     for (acc_t * ptr = buf; ptr < buf + len; ptr++) {
-        // *ptr = (rand() % 32) - 16;
-#ifdef FAST
-      *ptr = 1;
-#else
-      *ptr = (rand() % 5) - 2;
-#endif
+        *ptr = NN_floatToHalf((rand() % 5) - 2.0);
     }
 }
 
@@ -271,7 +270,7 @@ int main() {
         NO_BIAS ? NULL : (acc_t*)bias,
         (elem_t*)output_mat,
 
-        NO_ACTIVATION, ACC_SCALE_IDENTITY, 0, 0, 0,
+        NO_ACTIVATION, NN_floatToHalf(1), 0, 0, 0,
 
         WS);
     uint64_t end_gemmini = read_cycles();
@@ -291,7 +290,17 @@ int main() {
       }
     }
 #else
-    bool success = vec_is_equal(&output[0][0][0][0], &output_mat[0][0], sizeof(output) / sizeof(elem_t));
+    static float output_fp32[BATCH_SIZE][OUT_ROW_DIM][OUT_COL_DIM][OUT_CHANNELS];
+    static float output_mat_fp32[N_PATCHES][OUT_CHANNELS];
+
+    for (int i = 0; i < sizeof(output) / sizeof(elem_t); i++) {
+        ((float *)output_fp32)[i] = NN_halfToFloat(((elem_t *)output)[i]);
+    }
+    for (int i = 0; i < sizeof(output_mat) / sizeof(elem_t); i++) {
+        ((float *)output_mat_fp32)[i] = NN_halfToFloat(((elem_t *)output_mat)[i]);
+    }
+    bool success = vec_is_equal_fp32(&output_fp32[0][0][0][0], &output_mat_fp32[0][0], sizeof(output_fp32) / sizeof(float), 1e-6);
+    // bool success = vec_is_equal(&output[0][0][0][0], &output_mat[0][0], sizeof(output) / sizeof(elem_t));
 #endif
 
     if (!success) {
@@ -299,7 +308,8 @@ int main() {
 
         printf("bias:\n");
         for (int och = 0; och < OUT_CHANNELS; och++) {
-            printf("%d,", bias[och]);
+            printf(" ");
+            NN_printFloat(NN_halfToFloat(bias[och]), 3);
         }
         printf("\b\n\n");
 
@@ -311,7 +321,8 @@ int main() {
                 for (int wcol = 0; wcol < KERNEL_DIM; wcol++) {
                     printf("[");
                     for (int ich = 0; ich < IN_CHANNELS; ich++) {
-                        printf("%d,", weights[och][wrow][wcol][ich]);
+                        printf(" ");
+            NN_printFloat(NN_halfToFloat(weights[och][wrow][wcol][ich]), 3);
                     }
                     printf("\b],");
                 }
@@ -325,7 +336,8 @@ int main() {
         for (int wrow = 0; wrow < KERNEL_DIM * KERNEL_DIM * IN_CHANNELS; wrow++) {
             printf("[");
             for (int wcol = 0; wcol < OUT_CHANNELS; wcol++) {
-                printf("%d,", weights_mat[wrow][wcol]);
+                printf(" ");
+            NN_printFloat(NN_halfToFloat(weights_mat[wrow][wcol]), 3);
             }
             printf("\b],\n");
         }
@@ -339,7 +351,8 @@ int main() {
                 for (int icol = 0; icol < IN_COL_DIM; icol++) {
                     printf("[");
                     for (int ich = 0; ich < IN_CHANNELS; ich++) {
-                        printf("%d,", input[batch][irow][icol][ich]);
+                        printf(" ");
+            NN_printFloat(NN_halfToFloat(input[batch][irow][icol][ich]), 3);
                     }
                     printf("\b],");
                 }
@@ -357,7 +370,8 @@ int main() {
                 for (int ocol = 0; ocol < OUT_COL_DIM; ocol++) {
                     printf("[");
                     for (int och = 0; och < OUT_CHANNELS; och++) {
-                        printf("%d,", output[batch][orow][ocol][och]);
+                        printf(" ");
+            NN_printFloat(NN_halfToFloat(output[batch][orow][ocol][och]), 3);
                     }
                     printf("\b],");
                 }
@@ -371,7 +385,8 @@ int main() {
         for (int orow = 0; orow < BATCH_SIZE * OUT_ROW_DIM * OUT_COL_DIM; orow++) {
             printf("[");
             for (int ocol = 0; ocol < OUT_CHANNELS; ocol++) {
-                printf("%d,", output_mat[orow][ocol]);
+                printf(" ");
+            NN_printFloat(NN_halfToFloat(output_mat[orow][ocol]), 3);
             }
             printf("\b],\n");
         }

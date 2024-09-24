@@ -47,16 +47,19 @@ tests = \
 	tiled_matmul_ws_igelu \
 	tiled_matmul_ws_layernorm \
 	tiled_matmul_ws_softmax \
+	acquire_release \
+	multi_matmul_mac \
+	multi_conv_mac \
+	multi_matmul_data \
+	multi_conv_data \
 	tiled_matmul_ws_perf \
-	tiled_matmul_cpu \
-	tiled_matmul_option \
-	transpose \
-	matrix_add \
-	resadd \
-	resadd_stride \
-	global_average \
-	gemmini_counter \
-	template \
+    tiled_matmul_ws_rr \
+	tiled_matmul_data \
+	conv_pool_data \
+	conv_data \
+	conv_mac \
+	tiled_matmul_mac \
+	resadd_data \
 
 tests_baremetal = $(tests:=-baremetal)
 

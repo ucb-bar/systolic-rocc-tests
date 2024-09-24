@@ -43,6 +43,14 @@
 #define WEIGHT_STRIDE (OUT_CHANNELS + 4)
 #define OUT_STRIDE (OUT_CHANNELS + 2)
 
+bool vec_is_equal_fp32(float *a, float *b, int len, float epsilon) {
+    for (int i = 0; i < len; i++) {
+        if (fabs(a[i] - b[i]) > epsilon) {
+            return false;
+        }
+    }
+    return true;
+}
 void conv(int batch_size, int in_channels,
         int in_row_dim, int in_col_dim,
         int out_channels, int kernel_dim,
@@ -82,9 +90,9 @@ void conv(int batch_size, int in_channels,
                                     icol < 0 || icol >= in_col_dim ?
                                     0 : input[b][irow][icol][kch];
 
-                                result +=
-                                    weights[och][krow][kcol][kch] *
-                                    pixel;
+                                // result should be a fp16 value
+                                result = NN_floatToHalf(NN_halfToFloat(result) + NN_halfToFloat(weights[och][krow][kcol][kch]) * NN_halfToFloat(pixel));
+                                // result += NN_halfToFloat(weights[och][krow][kcol][kch]) * NN_halfToFloat(pixel);
                             }
                         }
                     }
@@ -97,6 +105,7 @@ void conv(int batch_size, int in_channels,
             }
         }
     }
+\
 }
 
 void flatten_weights(int out_channels, int kernel_dim, int in_channels,
@@ -129,21 +138,16 @@ bool vec_is_equal(elem_t * a, elem_t * b, int len) {
     return true;
 }
 
-void init_random(elem_t * buf, int row, int col, int stride){
-    elem_t i = 0;
-    for(int r = 0; r < row; r++){
-        for(int c = 0; c < col; c++){
-            elem_t * ptr = buf + r * stride + c;
-            *ptr = (rand() % 5) - 2;
-        }
+
+void init_random(elem_t * buf, int len) {
+    for (elem_t * ptr = buf; ptr < buf + len; ptr++) {
+        *ptr = NN_floatToHalf((rand() % 5) - 2.0);
     }
 }
 
 void init_random_acc(acc_t * buf, int len) {
-    elem_t i = 0;
     for (acc_t * ptr = buf; ptr < buf + len; ptr++) {
-        // *ptr = (rand() % 32) - 16;
-      *ptr = (rand() % 5) - 2;
+        *ptr = NN_floatToHalf((rand() % 5) - 2.0);
     }
 }
 
@@ -172,10 +176,10 @@ int main() {
     static elem_t output[BATCH_SIZE][OUT_ROW_DIM][OUT_COL_DIM][OUT_STRIDE];
 
     printf("Randomize inputs...\n");
-    init_random(&input[0][0][0][0], BATCH_SIZE*IN_ROW_DIM*IN_COL_DIM, IN_CHANNELS, IN_STRIDE);
+    init_random(&input[0][0][0][0], BATCH_SIZE*IN_ROW_DIM*IN_COL_DIM);
 
     printf("Randomize weights...\n");
-    init_random(&weights[0][0][0][0], OUT_CHANNELS*KERNEL_DIM*KERNEL_DIM,IN_CHANNELS, IN_CHANNELS);
+    init_random(&weights[0][0][0][0], OUT_CHANNELS*KERNEL_DIM*KERNEL_DIM);
 
     printf("Randomize bias...\n");
     if (NO_BIAS)
@@ -215,27 +219,37 @@ int main() {
         STRIDE, 1, 1, PADDING, KERNEL_DIM,
         IN_STRIDE, WEIGHT_STRIDE, OUT_STRIDE,
         false, false, false, false, false,
-
         (elem_t*)input,
         (elem_t*)weights_mat,
         NO_BIAS ? NULL : (acc_t*)bias,
         (elem_t*)output_mat,
-
-        NO_ACTIVATION, ACC_SCALE_IDENTITY, 0, 0, 0,
-
+        NO_ACTIVATION, NN_floatToHalf(1), 0, 0, 0,
         WS);
     uint64_t end_gemmini = read_cycles();
     printf("Gemmini conv took %llu cycles\n", end_gemmini - start_gemmini);
 
     assert(sizeof(output_mat) == sizeof(output));
 
-    bool success = vec_is_equal(&output[0][0][0][0], &output_mat[0][0], sizeof(output) / sizeof(elem_t));
+
+    static float output_fp32[BATCH_SIZE][OUT_ROW_DIM][OUT_COL_DIM][OUT_CHANNELS];
+    static float output_mat_fp32[N_PATCHES][OUT_CHANNELS];
+
+    for (int i = 0; i < sizeof(output) / sizeof(elem_t); i++) {
+        ((float *)output_fp32)[i] = NN_halfToFloat(((elem_t *)output)[i]);
+    }
+    for (int i = 0; i < sizeof(output_mat) / sizeof(elem_t); i++) {
+        ((float *)output_mat_fp32)[i] = NN_halfToFloat(((elem_t *)output_mat)[i]);
+    }
+    bool success = vec_is_equal_fp32(&output_fp32[0][0][0][0], &output_mat_fp32[0][0], sizeof(output_fp32) / sizeof(float), 1e-6);
+    // bool success = vec_is_equal(&output[0][0][0][0], &output_mat[0][0], sizeof(output) / sizeof(elem_t));
+
     if (!success) {
         // return 1;
 
         printf("bias:\n");
         for (int och = 0; och < OUT_CHANNELS; och++) {
-            printf("%d,", bias[och]);
+            printf(" ");
+            NN_printFloat(NN_halfToFloat(bias[och]), 3);
         }
         printf("\b\n\n");
 
@@ -261,8 +275,8 @@ int main() {
         for (int wrow = 0; wrow < KERNEL_DIM * KERNEL_DIM * IN_CHANNELS; wrow++) {
             printf("[");
             for (int wcol = 0; wcol < WEIGHT_STRIDE; wcol++) {
-                printf("%d,", weights_mat[wrow][wcol]);
-            }
+                        printf(" ");
+                        NN_printFloat(NN_halfToFloat(weights[wrow][wcol]), 3);            }
             printf("\b],\n");
         }
         printf("\b\n\n");
@@ -275,7 +289,8 @@ int main() {
                 for (int icol = 0; icol < IN_COL_DIM; icol++) {
                     printf("[");
                     for (int ich = 0; ich < IN_STRIDE; ich++) {
-                        printf("%d,", input[batch][irow][icol][ich]);
+                        printf(" ");
+                        NN_printFloat(NN_halfToFloat(input[batch][irow][icol][ich]), 3);
                     }
                     printf("\b],");
                 }
@@ -293,7 +308,8 @@ int main() {
                 for (int ocol = 0; ocol < OUT_COL_DIM; ocol++) {
                     printf("[");
                     for (int och = 0; och < OUT_STRIDE; och++) {
-                        printf("%d,", output[batch][orow][ocol][och]);
+                        printf(" ");
+                        NN_printFloat(NN_halfToFloat(output[batch][orow][ocol][och]),3);
                     }
                     printf("\b],\n");
                 }
@@ -307,7 +323,8 @@ int main() {
         for (int orow = 0; orow < BATCH_SIZE * OUT_ROW_DIM * OUT_COL_DIM; orow++) {
             printf("[");
             for (int ocol = 0; ocol < OUT_STRIDE; ocol++) {
-                printf("%d,", output_mat[orow][ocol]);
+                printf(" ");
+                NN_printFloat(NN_halfToFloat(output_mat[orow][ocol]),3);
             }
             printf("\b],\n");
         }
@@ -315,6 +332,7 @@ int main() {
 
         return 1;
     }
-
+    printf("\n");
+    printf("Pass\n");
     return 0;
 }

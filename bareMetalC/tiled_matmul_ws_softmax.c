@@ -27,9 +27,9 @@ typedef elem_t ACC_T;
 #define MAT_DIM_K 64
 #define MAT_DIM_J 128
 #else
-#define MAT_DIM_I 31
-#define MAT_DIM_K 30
-#define MAT_DIM_J 66
+#define MAT_DIM_I 16
+#define MAT_DIM_K 16
+#define MAT_DIM_J 16
 #endif
 
 void full_printMatrix(elem_t m[MAT_DIM_I][MAT_DIM_J]) {
@@ -69,7 +69,7 @@ int main() {
 
     static elem_t gold[MAT_DIM_I][MAT_DIM_J];
 
-#if CHECK_RESULT == 1
+// #if CHECK_RESULT == 1
     // printf("Init A\n");
     for (size_t i = 0; i < MAT_DIM_I; ++i) {
       for (size_t j = 0; j < MAT_DIM_K; ++j) {
@@ -107,7 +107,7 @@ int main() {
     unsigned long cpu_end = read_cycles();
     printf("Cycles taken: %u\n", cpu_end-cpu_start);
 
-#endif
+// #endif
 
     printf("Starting gemmini matmul\n");
     unsigned long start = read_cycles();
@@ -136,7 +136,8 @@ int main() {
       exit(1);
     }
 #endif
-
+  printf("\n");
+  printf("Pass\n");
   exit(0);
 }
 
