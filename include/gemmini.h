@@ -16,10 +16,13 @@
 
 #define GEMMINI_ASSERTIONS
 
+// ReRoCC interface
+#include "include/rerocc.h"
+
 // Accelerator interface
 #include "rocc-software/src/xcustom.h"
 
-// Counter Definition
+// Counter Definitions
 #include "include/gemmini_counter.h"
 
 #define k_CONFIG 0
@@ -272,14 +275,14 @@ static acc_scale_t_bits acc_scale_t_to_acc_scale_t_bits(acc_scale_t x) {
 #define gemmini_config_ld(stride) \
   gemmini_extended_config_ld(stride, MVIN_SCALE_IDENTITY)
 
-#define gemmini_extended2_config_st(stride, acc_act, acc_scale, pool_stride, pool_size, pool_out_dim, porows, pocols, orows, ocols, upad, lpad) \
-  ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, ((uint64_t)(ocols) << 56) | ((uint64_t)(orows) << 48) | ((uint64_t)(pocols) << 40) | ((uint64_t)(porows) << 32) | ((uint64_t)(pool_out_dim) << 24) | ((uint64_t)(lpad) << 10) | ((uint64_t)(upad) << 8) | ((uint64_t)(pool_size) << 6) | ((uint64_t)(pool_stride) << 4) | ((uint64_t)(acc_act) << 2) | CONFIG_ST, ((uint64_t)acc_scale_t_to_acc_scale_t_bits((acc_scale_t)acc_scale) << 32) | ((uint32_t)stride), k_CONFIG)
+#define gemmini_extended2_config_st(stride, acc_act, acc_scale, sync_blocks, pool_stride, pool_size, pool_out_dim, porows, pocols, orows, ocols, upad, lpad) \
+  ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, ((uint64_t)(ocols) << 56) | ((uint64_t)(orows) << 48) | ((uint64_t)(pocols) << 40) | ((uint64_t)(porows) << 32) | ((uint64_t)(pool_out_dim) << 24) | ((uint64_t)(sync_blocks) << 12) | ((uint64_t)(lpad) << 10) | ((uint64_t)(upad) << 8) | ((uint64_t)(pool_size) << 6) | ((uint64_t)(pool_stride) << 4) | ((uint64_t)(acc_act) << 2) | CONFIG_ST, ((uint64_t)acc_scale_t_to_acc_scale_t_bits((acc_scale_t)acc_scale) << 32) | ((uint32_t)stride), k_CONFIG)
 
-#define gemmini_extended_config_st(stride, acc_act, acc_scale) \
-    gemmini_extended2_config_st(stride, acc_act, acc_scale, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+#define gemmini_extended_config_st(stride, acc_act, acc_scale, sync_blocks) \
+    gemmini_extended2_config_st(stride, acc_act, acc_scale, sync_blocks, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
 #define gemmini_config_st(stride) \
-    gemmini_extended_config_st(stride, NO_ACTIVATION, ACC_SCALE_IDENTITY)
+    gemmini_extended_config_st(stride, NO_ACTIVATION, ACC_SCALE_IDENTITY, 0)
 
 #define gemmini_config_norm(q_const, q_const_type, set_stats_id_only, act_msb, stat_id, igelu_qb, igelu_qc) \
     ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, (((uint64_t) ((uint32_t) q_const)) << 32) | ((q_const_type & 1) << 18) | ((set_stats_id_only & 1) << 17) | ((act_msb & 1) << 16) | ((uint64_t)stat_id << 8) | CONFIG_BERT, ((uint64_t)((uint32_t)(igelu_qc)) << 32) | ((uint64_t)((uint32_t)(igelu_qb))), k_CONFIG)
@@ -346,14 +349,14 @@ int ceil_divide_int(int a, int b){
 }
 
 // weight-stationary matmul loop
-#define gemmini_loop_ws(I, J, K, pad_I, pad_J, pad_K, A, B, D, C, A_stride, B_stride, D_stride, C_stride, A_transpose, B_transpose, full_C, low_D, ex_accumulate, act, a_spad_id, b_spad_id, is_resadd) \
+#define gemmini_loop_ws(I, J, K, pad_I, pad_J, pad_K, A, B, D, C, A_stride, B_stride, D_stride, C_stride, A_transpose, B_transpose, full_C, no_block_mvout, low_D, ex_accumulate, act, a_spad_id, b_spad_id, is_resadd) \
   { \
     ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, ((uint64_t)(pad_K) << 32) | ((uint64_t)(pad_J) << 16) | (uint64_t)(pad_I), ((uint64_t)(K) << 32) | ((uint64_t)(J) << 16) | (uint64_t)(I), k_LOOP_WS_CONFIG_BOUNDS) \
     ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, A, B, k_LOOP_WS_CONFIG_ADDRS_AB) \
     ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, D, C, k_LOOP_WS_CONFIG_ADDRS_DC) \
     ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, A_stride, B_stride, k_LOOP_WS_CONFIG_STRIDES_AB) \
     ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, D_stride, C_stride, k_LOOP_WS_CONFIG_STRIDES_DC) \
-    ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, ((uint64_t)(a_spad_id) << 18) | ((uint64_t)(b_spad_id) << 16) | ((uint64_t)(act) << 8) | ((low_D) << 2) | ((full_C) << 1) | (ex_accumulate), ((is_resadd) << 2) | ((B_transpose) << 1) | (A_transpose), k_LOOP_WS) \
+    ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, ((uint64_t)(a_spad_id) << 18) | ((uint64_t)(b_spad_id) << 16) | ((uint64_t)(act) << 8) | ((no_block_mvout) << 3) | ((low_D) << 2) | ((full_C) << 1) | (ex_accumulate), ((is_resadd) << 2) | ((B_transpose) << 1) | (A_transpose), k_LOOP_WS) \
   }
 
 // weight-stationary conv loop
@@ -684,7 +687,7 @@ static void sp_tiled_matmul_ws(const elem_t * A, const elem_t * B,
   gemmini_loop_ws(I, J, K, pad_I, pad_J, pad_K, A, B, no_bias ? NULL : D, C,
     A_row_stride, B_row_stride, repeating_bias ? 0 : D_row_stride, C_row_stride,
     a_transpose, b_transpose,
-    full_C, low_D, !no_bias || D == NULL,
+    full_C, false, low_D, !no_bias || D == NULL,
     act, a_spad_id, b_spad_id, false);
 }
 
@@ -699,7 +702,7 @@ static void tiled_matmul_outer(size_t dim_I, size_t dim_J, size_t dim_K,
         bool repeating_bias,
         bool a_transpose, bool b_transpose,
         bool full_C, bool low_D,
-        uint8_t weightA,
+        uint8_t weightA, uint8_t sync_size,
         int dataflow) {
 
   const size_t dim_I_padded = (dim_I / DIM + (dim_I % DIM != 0)) * DIM;
@@ -732,7 +735,7 @@ static void tiled_matmul_outer(size_t dim_I, size_t dim_J, size_t dim_K,
   const size_t sizeof_C = full_C ? sizeof(acc_t) : sizeof(elem_t);
 
   gemmini_extended_config_ex(dataflow, act & 3, 0, 1, a_transpose, b_transpose);
-  gemmini_extended_config_st(stride_C * sizeof_C, act & 3, scale);
+  gemmini_extended_config_st(stride_C * sizeof_C, act & 3, scale, sync_size);
   gemmini_extended3_config_ld(stride_A * sizeof(elem_t), A_scale_factor, false, 0);
   gemmini_extended3_config_ld(stride_B * sizeof(elem_t), B_scale_factor, false, 1)
   gemmini_extended3_config_ld(repeating_bias ? 0 : (stride_D * sizeof_D), D_scale_factor, low_D, 2);
@@ -1112,6 +1115,7 @@ static void tiled_matmul(size_t dim_I, size_t dim_J, size_t dim_K,
         bool transpose_A, bool transpose_B,
         bool full_C, bool low_D,
         uint8_t weightA,
+        uint8_t sync_size,
         enum tiled_matmul_type_t tiled_matmul_type) {
 
 #ifdef GEMMINI_ASSERTIONS
@@ -1205,7 +1209,7 @@ static void tiled_matmul(size_t dim_I, size_t dim_J, size_t dim_K,
         act, scale, bert_scale, repeating_bias,
         transpose_A, transpose_B,
         full_C, low_D,
-        weightA,
+        weightA, sync_size,
         (int)tiled_matmul_type);
   } else /*if (tiled_matmul_type == CPU)*/ {
     matmul_cpu(transpose_A, transpose_B, dim_I, dim_J, dim_K,
@@ -1325,6 +1329,174 @@ static void tiled_matmul_auto(size_t dim_I, size_t dim_J, size_t dim_K,
     exit(EXIT_SUCCESS);
 #endif
 #endif
+    //printf("tile_I: %d\n", tile_I);
+    //printf("tile_J: %d\n", tile_J);
+    //printf("tile_K: %d\n\n", tile_K);
+
+
+    tiled_matmul(dim_I, dim_J, dim_K,
+        A, B, D, C,
+        stride_A, stride_B, stride_D, stride_C,
+        A_scale_factor, B_scale_factor, D_scale_factor,
+        act, scale, bert_scale, repeating_bias,
+        tile_I, tile_J, tile_K,
+        transpose_A, transpose_B,
+        full_C, low_D,
+        weightA, 0,
+        tiled_matmul_type);
+
+#undef partition_rows
+#undef mats_in_partition
+#undef mats_in_acc
+#undef max_tile_i_j
+#undef max_tile_k
+}
+
+static void tiled_matmul_small(size_t dim_I, size_t dim_J, size_t dim_K,
+        const elem_t* A, const elem_t* B,
+        const void * D, void * C,
+        size_t stride_A, size_t stride_B, size_t stride_D, size_t stride_C,
+        scale_t A_scale_factor, scale_t B_scale_factor, scale_acc_t D_scale_factor,
+        size_t tile_I, size_t tile_J, size_t tile_K,
+        int act, acc_scale_t scale, 
+        bool repeating_bias,
+        bool a_transpose, bool b_transpose,
+        bool full_C, bool low_D,
+        int a_spad_id, int b_spad_id,
+        int8_t sync_size,
+        bool config) {
+
+  const size_t dim_I_padded = (dim_I / DIM + (dim_I % DIM != 0)) * DIM;
+  const size_t dim_J_padded = (dim_J / DIM + (dim_J % DIM != 0)) * DIM;
+  const size_t dim_K_padded = (dim_K / DIM + (dim_K % DIM != 0)) * DIM;
+  // These lines here are supposed to help us deal with when the dimensions of
+  // the systolic array aren't divisible by the tiling factors
+  const size_t I = tile_I;
+  const size_t J = tile_J;
+  const size_t K = tile_K;
+
+  // These lines are supposed to figure out how much padding the hardware is
+  // supposed to add for the final tile
+  const size_t pad_I = dim_I_padded - dim_I;
+  const size_t pad_J = dim_J_padded - dim_J;
+  const size_t pad_K = dim_K_padded - dim_K;
+
+  const bool no_bias = D == NULL;
+  const size_t sizeof_D = low_D ? sizeof(elem_t) : sizeof(acc_t) ;
+  const size_t sizeof_C = full_C ? sizeof(acc_t) : sizeof(elem_t);
+
+  if(config){
+    gemmini_extended_config_ex(WEIGHT_STATIONARY, act & 3, 0, 1, a_transpose, b_transpose);
+    gemmini_extended_config_st(stride_C * sizeof_C, act & 3, scale, sync_size);
+    gemmini_extended3_config_ld(stride_A * sizeof(elem_t), A_scale_factor, false, 0);
+    gemmini_extended3_config_ld(stride_B * sizeof(elem_t), B_scale_factor, false, 1)
+    gemmini_extended3_config_ld(repeating_bias ? 0 : (stride_D * sizeof_D), D_scale_factor, low_D, 2);
+  }
+  gemmini_loop_ws(I, J, K, pad_I, pad_J, pad_K, A, B, no_bias ? NULL : D, C,
+    stride_A, stride_B, repeating_bias ? 0 : stride_D, stride_C,
+    a_transpose, b_transpose,
+    full_C, true, low_D, !no_bias || D == NULL,
+    act, a_spad_id, b_spad_id, false);
+}
+
+
+static void tiled_matmul_sync_auto(size_t dim_I, size_t dim_J, size_t dim_K,
+        const elem_t* A, const elem_t* B,
+        const void * D, void * C,
+        size_t stride_A, size_t stride_B, size_t stride_D, size_t stride_C,
+        scale_t A_scale_factor, scale_t B_scale_factor, scale_acc_t D_scale_factor,
+        int act, acc_scale_t scale, acc_scale_t bert_scale,
+        bool repeating_bias,
+        bool transpose_A, bool transpose_B,
+        bool full_C, bool low_D,
+        uint8_t weightA,
+        uint8_t sync_size) {
+
+#define partition_rows (BANK_NUM * BANK_ROWS / 2)
+#define mats_in_partition (partition_rows / DIM)
+#define mats_in_acc (ACC_ROWS / DIM)
+#define max_tile_i_j ((size_t)sqrt(mats_in_acc))
+#define max_tile_k (mats_in_partition / max_tile_i_j)
+
+    // "db_" means "double-buffered"
+#define db_partition_rows ((BANK_NUM * BANK_ROWS / 2) / 2)
+#define db_mats_in_partition (db_partition_rows / DIM)
+#define db_mats_in_acc ((ACC_ROWS / 2) / DIM)
+#define db_max_tile_i_j ((size_t)sqrt(db_mats_in_acc))
+#define db_max_tile_k (db_mats_in_partition / db_max_tile_i_j)
+
+    const size_t dim_I_padded = (dim_I / DIM + (dim_I % DIM != 0)) * DIM;
+    const size_t dim_J_padded = (dim_J / DIM + (dim_J % DIM != 0)) * DIM;
+    const size_t dim_K_padded = (dim_K / DIM + (dim_K % DIM != 0)) * DIM;
+
+    const bool double_buffered = true;//tiled_matmul_type == WS;
+
+    const size_t max_spad_rows = double_buffered ? BANK_NUM * BANK_ROWS / 2 :
+      BANK_NUM * BANK_ROWS;
+    const size_t max_acc_rows = double_buffered ? ACC_ROWS / 2 : ACC_ROWS;
+
+    size_t tile_I, tile_J, tile_K;
+
+    if (act == LAYERNORM || act == SOFTMAX) {
+       tile_I = 1;
+       tile_J = dim_J_padded/DIM;
+       tile_K = 1;
+    } else if (double_buffered) {
+       tile_I = dim_I_padded/DIM < db_max_tile_i_j ? dim_I_padded/DIM : db_max_tile_i_j;
+       tile_J = dim_J_padded/DIM < db_max_tile_i_j ? dim_J_padded/DIM : db_max_tile_i_j;
+       tile_K = dim_K_padded/DIM < db_max_tile_k ? dim_K_padded/DIM : db_max_tile_k;
+    } else {
+       tile_I = dim_I_padded/DIM < max_tile_i_j ? dim_I_padded/DIM : max_tile_i_j;
+       tile_J = dim_J_padded/DIM < max_tile_i_j ? dim_J_padded/DIM : max_tile_i_j;
+       tile_K = dim_K_padded/DIM < max_tile_k ? dim_K_padded/DIM : max_tile_k;
+    }
+
+    // Fill scratchpad as much as possible
+    while (true) {
+      bool increased = false;
+
+      if (tiled_matmul_total_spad_rows(tile_I, tile_J+1, tile_K) <= max_spad_rows &&
+          tiled_matmul_total_acc_rows(tile_I, tile_J+1) <= max_acc_rows &&
+          (tile_J+1) * DIM <= dim_J_padded) {
+        tile_J++;
+        increased = true;
+      }
+
+      if (tiled_matmul_total_spad_rows(tile_I+1, tile_J, tile_K) <= max_spad_rows &&
+          tiled_matmul_total_acc_rows(tile_I+1, tile_J) <= max_acc_rows &&
+          (tile_I+1) * DIM <= dim_I_padded) {
+        tile_I++;
+        increased = true;
+      }
+
+      if (tiled_matmul_total_spad_rows(tile_I, tile_J, tile_K+1) <= max_spad_rows &&
+          (tile_K+1) * DIM <= dim_K_padded) {
+        tile_K++;
+        increased = true;
+      }
+
+      if (!increased)
+        break;
+    }
+
+#ifdef PRINT_TILE
+#if PRINT_TILE
+    const int spad_rows = tiled_matmul_total_spad_rows(tile_I, tile_J, tile_K);
+    const int acc_rows = tiled_matmul_total_acc_rows(tile_I, tile_J);
+
+    printf("tile_I: %d\n", tile_I);
+    printf("tile_J: %d\n", tile_J);
+    printf("tile_K: %d\n\n", tile_K);
+
+    printf("spad_rows: %d\n", spad_rows);
+    printf("acc_rows: %d\n\n", acc_rows);
+
+    printf("spad_row utilization: %d%%\n", (spad_rows * 100) / max_spad_rows);
+    printf("acc_row utilization: %d%%\n\n", (acc_rows * 100) / max_acc_rows);
+
+    exit(EXIT_SUCCESS);
+#endif
+#endif
 
     tiled_matmul(dim_I, dim_J, dim_K,
         A, B, D, C,
@@ -1335,7 +1507,7 @@ static void tiled_matmul_auto(size_t dim_I, size_t dim_J, size_t dim_K,
         transpose_A, transpose_B,
         full_C, low_D,
         weightA,
-        tiled_matmul_type);
+        sync_size, WS);
 
 #undef partition_rows
 #undef mats_in_partition
@@ -1343,7 +1515,6 @@ static void tiled_matmul_auto(size_t dim_I, size_t dim_J, size_t dim_K,
 #undef max_tile_i_j
 #undef max_tile_k
 }
-
 
 static void sp_tiled_conv(
         int batch_size, int in_row_dim, int in_col_dim, int in_channels,
@@ -2285,7 +2456,7 @@ static void tiled_conv(
     const size_t st_dram_stride = trans_output_1203 ?
         batch_size * out_channels * sizeof(elem_t) :
         out_stride * sizeof(elem_t);
-    gemmini_extended_config_st(st_dram_stride, act, scale);
+    gemmini_extended_config_st(st_dram_stride, act, scale, 0);
 
     gemmini_extended3_config_ex(WEIGHT_STATIONARY, 0, 0, 0, input_dilation, stride >> downsample, trans_input_3120, trans_weight_0132, false);
 
@@ -2533,7 +2704,7 @@ static void tiled_conv_dw(
 #endif
 
     const size_t st_dram_stride = channels * sizeof(elem_t);
-    gemmini_extended_config_st(st_dram_stride, act, scale);
+    gemmini_extended_config_st(st_dram_stride, act, scale, 0);
 
     gemmini_extended3_config_ex(WEIGHT_STATIONARY, 0, 0, 0, 1, stride, false, false, false);
 
@@ -3144,7 +3315,7 @@ static void sp_tiled_resadd(const size_t I, const size_t J,
     int tile_I = (I%DIM == 0) ? (int)(I/DIM) : (int)(I/DIM) + 1;
     int tile_J = (J%DIM == 0) ? (int)(J/DIM) : (int)(J/DIM) + 1;
     //printf("pad I: %d, pad_J: %d, tile_I: %d, tile_J: %d\n", pad_I, pad_J, tile_I, tile_J);
-    gemmini_loop_ws(tile_I, tile_J, 0, pad_I, pad_J, 0, A, B, NULL, C, A_row_stride, B_row_stride, 0, C_row_stride, false, false, false, false, false, relu, 0, 0, true);
+    gemmini_loop_ws(tile_I, tile_J, 0, pad_I, pad_J, 0, A, B, NULL, C, A_row_stride, B_row_stride, 0, C_row_stride, false, false, false, false, false, false, relu, 0, 0, true);
     /*
     // Use the new mvin2 command to overlap mvin A, mvin B, and mvout C
 
@@ -3211,7 +3382,7 @@ static void tiled_resadd(const size_t I, const size_t J,
         bool relu,
         enum tiled_matmul_type_t matadd_type) {
 
-    gemmini_extended_config_st(stride * sizeof(elem_t), relu ? RELU : NO_ACTIVATION, C_scale);
+    gemmini_extended_config_st(stride * sizeof(elem_t), relu ? RELU : NO_ACTIVATION, C_scale, 0);
     gemmini_config_ex(WS, 0, 0);
 
     gemmini_extended4_config_ld(stride * sizeof(elem_t), A_scale, true, DIM, 0);
@@ -3379,7 +3550,7 @@ static void tiled_global_average(const elem_t * input, elem_t * output,
 
   gemmini_extended4_config_ld(DIM*sizeof(elem_t), MVIN_SCALE_IDENTITY, true, 1, 0);
   gemmini_config_ex(0, NO_ACTIVATION, 0);
-  gemmini_extended_config_st(0, NO_ACTIVATION, 1.0 / (dim*dim));
+  gemmini_extended_config_st(0, NO_ACTIVATION, 1.0 / (dim*dim), 0);
 
   for (int batch = 0; batch < batches; batch++) {
     for (int channel = 0; channel < channels; channel += channel_tile_size) {
@@ -3513,7 +3684,7 @@ static void tiled_norm(const size_t I, const size_t J,
         int act,
         enum tiled_matmul_type_t norm_type) {
 
-    gemmini_extended_config_st(J * sizeof(elem_t), act & 3, C_scale);
+    gemmini_extended_config_st(J * sizeof(elem_t), act & 3, C_scale, 0);
     gemmini_config_ex(WS, 0, 0); // TODO is this actually required?
 
     gemmini_extended4_config_ld(J * sizeof(acc_t), MVIN_SCALE_IDENTITY, false, DIM, 0);
