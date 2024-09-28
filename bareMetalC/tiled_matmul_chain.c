@@ -25,9 +25,9 @@ typedef elem_t ACC_T;
 #define A_TRANSPOSE 0
 #define B_TRANSPOSE 0
 
-#define MAT_DIM_I 64
-#define MAT_DIM_K 64
-#define MAT_DIM_J 64
+#define MAT_DIM_I 32
+#define MAT_DIM_K 32
+#define MAT_DIM_J 32
 
 #if A_TRANSPOSE==0
 #define A_STRIDE MAT_DIM_K
@@ -48,7 +48,7 @@ typedef elem_t ACC_T;
 
 
 void full_printMatrix(elem_t m[MAT_DIM_I][MAT_DIM_J]) {
-  for (size_t i = 0; i < MAT_DIM_I; ++i) {
+  for (size_t i = 0; i < 4; ++i) {
     for (size_t j = 0; j < MAT_DIM_J; ++j)
       printf("%d ", m[i][j]);
     printf("\n");
@@ -103,14 +103,14 @@ int main() {
         // printf("Init A\n");
     for (size_t i = 0; i < MAT_DIM_I; ++i) {
       for (size_t j = 0; j < MAT_DIM_K; ++j) {
-        full_A[i][j] = rand() % 3 - 1;
+        full_A[i][j] = 1;//rand() % 2;
       }
     }
 
     // printf("Init B\n");
     for (size_t i = 0; i < MAT_DIM_K; ++i) {
       for (size_t j = 0; j < MAT_DIM_J; ++j) {
-        full_B[i][j] = rand() % 2;
+        full_B[i][j] = rand() % 3 - 1;
       }
     }
 
@@ -123,7 +123,9 @@ int main() {
 #endif
 
     //static full_t gold_full[MAT_DIM_I][MAT_DIM_J];
+    static elem_t gold_temp[MAT_DIM_I][MAT_DIM_J] row_align(MAX_BLOCK_LEN);
     static elem_t gold[MAT_DIM_I][MAT_DIM_J] row_align(MAX_BLOCK_LEN);
+    static elem_t full_temp[MAT_DIM_I][MAT_DIM_J] row_align(MAX_BLOCK_LEN);
     int8_t tile_I = MAT_DIM_I / DIM;
     int8_t tile_J = MAT_DIM_J / DIM;
     int8_t tile_K = MAT_DIM_K / DIM;
@@ -133,7 +135,7 @@ int main() {
 #endif
 
     tiled_matmul_auto(MAT_DIM_I, MAT_DIM_J, MAT_DIM_K,
-            (elem_t*)full_A, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], (elem_t*)gold,
+            (elem_t*)full_A, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], (elem_t*)gold_temp,
             MAT_DIM_K, MAT_DIM_J, MAT_DIM_J, MAT_DIM_J,
             MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY,
             NO_ACTIVATION, ACC_SCALE_IDENTITY, 0, false,
@@ -145,7 +147,7 @@ int main() {
     rr_fence(0);
 #endif
     tiled_matmul_auto(MAT_DIM_I, MAT_DIM_J, MAT_DIM_K,
-            (elem_t*)gold, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], (elem_t*)gold,
+            (elem_t*)gold_temp, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], (elem_t*)gold,
             MAT_DIM_K, MAT_DIM_J, MAT_DIM_J, MAT_DIM_J,
             MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY,
             NO_ACTIVATION, ACC_SCALE_IDENTITY, 0, false,
@@ -159,7 +161,7 @@ int main() {
     printf("test done\n");
 
     elem_t* temp_addr = (elem_t*)BASE_ADDR + ADDR_OFFSET;
-    //memcpy((elem_t*) temp_addr, (elem_t*) full_A, sizeof(elem_t)*MAT_DIM_I*MAT_DIM_K);
+    memcpy((elem_t*) temp_addr, (elem_t*) full_temp, sizeof(elem_t)*MAT_DIM_I*MAT_DIM_K);
 
 
     printf("temp addr: 0x%08lx\n", temp_addr);
@@ -209,6 +211,7 @@ int main() {
 
       uint64_t end = read_cycles();
       printf("Cycles taken: %d\n", end-start);
+      memcpy((elem_t*) full_temp, (elem_t*) temp_addr, sizeof(elem_t)*MAT_DIM_I*MAT_DIM_K);
 
       const uint64_t total_macs = MAT_DIM_I * MAT_DIM_J * MAT_DIM_K * 2;
       const uint64_t ideal_cycles = total_macs / (DIM * DIM);
@@ -225,6 +228,15 @@ int main() {
 #endif
 
 #if CHECK_RESULT == 1
+    if (!full_is_equal(full_temp, gold_temp)) {
+      printf("temp:\n");
+      full_printMatrix(full_temp);
+      printf("gold teno:\n");
+      full_printMatrix(gold_temp);
+      printf("\n");
+
+      exit(1);
+    }
     if (!full_is_equal(full_C, gold)) {
       printf("C:\n");
       full_printMatrix(full_C);
