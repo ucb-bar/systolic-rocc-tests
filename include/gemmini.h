@@ -1388,6 +1388,7 @@ static void tiled_matmul_small(size_t dim_I, size_t dim_J, size_t dim_K,
   if(config){
     gemmini_extended_config_ex(WEIGHT_STATIONARY, act & 3, 0, 1, a_transpose, b_transpose);
     gemmini_extended_config_st(stride_C * sizeof_C, act & 3, scale, sync_size);
+    //gemmini_extended_config_st(DIM * sizeof_C, act & 3, scale, sync_size);
     gemmini_extended3_config_ld(stride_A * sizeof(elem_t), A_scale_factor, false, 0);
     gemmini_extended3_config_ld(stride_B * sizeof(elem_t), B_scale_factor, false, 1)
     gemmini_extended3_config_ld(repeating_bias ? 0 : (stride_D * sizeof_D), D_scale_factor, low_D, 2);
@@ -1395,7 +1396,7 @@ static void tiled_matmul_small(size_t dim_I, size_t dim_J, size_t dim_K,
   gemmini_loop_ws(I, J, K, pad_I, pad_J, pad_K, A, B, no_bias ? NULL : D, C,
     stride_A, stride_B, repeating_bias ? 0 : stride_D, stride_C,
     a_transpose, b_transpose,
-    full_C, true, low_D, !no_bias || D == NULL,
+    full_C, sync_size > 0, low_D, !no_bias || D == NULL,
     act, a_spad_id, b_spad_id, false);
 }
 

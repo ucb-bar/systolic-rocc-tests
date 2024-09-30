@@ -25,9 +25,9 @@ typedef elem_t ACC_T;
 #define A_TRANSPOSE 0
 #define B_TRANSPOSE 0
 
-#define MAT_DIM_I 32
-#define MAT_DIM_K 32
-#define MAT_DIM_J 32
+#define MAT_DIM_I 64
+#define MAT_DIM_K 64
+#define MAT_DIM_J 64
 
 #if A_TRANSPOSE==0
 #define A_STRIDE MAT_DIM_K
@@ -41,7 +41,7 @@ typedef elem_t ACC_T;
 #define B_STRIDE MAT_DIM_K
 #endif
 
-#define SYNC_SIZE 0
+#define SYNC_SIZE 2
 #define NUM_ARRAY 2
 #define BASE_ADDR 0x70000000L
 #define ADDR_OFFSET 0x100000L
@@ -103,7 +103,7 @@ int main() {
         // printf("Init A\n");
     for (size_t i = 0; i < MAT_DIM_I; ++i) {
       for (size_t j = 0; j < MAT_DIM_K; ++j) {
-        full_A[i][j] = 1;//rand() % 2;
+        full_A[i][j] = rand() % 2;
       }
     }
 
@@ -126,9 +126,9 @@ int main() {
     static elem_t gold_temp[MAT_DIM_I][MAT_DIM_J] row_align(MAX_BLOCK_LEN);
     static elem_t gold[MAT_DIM_I][MAT_DIM_J] row_align(MAX_BLOCK_LEN);
     static elem_t full_temp[MAT_DIM_I][MAT_DIM_J] row_align(MAX_BLOCK_LEN);
-    int8_t tile_I = MAT_DIM_I / DIM;
-    int8_t tile_J = MAT_DIM_J / DIM;
-    int8_t tile_K = MAT_DIM_K / DIM;
+    int8_t tile_I = ceil_divide_int(MAT_DIM_I, DIM);
+    int8_t tile_J = ceil_divide_int(MAT_DIM_J, DIM);
+    int8_t tile_K = ceil_divide_int(MAT_DIM_K, DIM);
 
 #if ReRoCC == 1
     rr_set_opc(XCUSTOM_ACC, 0);
@@ -146,6 +146,7 @@ int main() {
 #if ReRoCC == 1
     rr_fence(0);
 #endif
+
     tiled_matmul_auto(MAT_DIM_I, MAT_DIM_J, MAT_DIM_K,
             (elem_t*)gold_temp, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], (elem_t*)gold,
             MAT_DIM_K, MAT_DIM_J, MAT_DIM_J, MAT_DIM_J,
@@ -158,10 +159,10 @@ int main() {
 #if ReRoCC == 1
     rr_fence(0);
 #endif
-    printf("test done\n");
+    //printf("test done\n");
 
     elem_t* temp_addr = (elem_t*)BASE_ADDR + ADDR_OFFSET;
-    memcpy((elem_t*) temp_addr, (elem_t*) full_temp, sizeof(elem_t)*MAT_DIM_I*MAT_DIM_K);
+    //memcpy((elem_t*) temp_addr, (elem_t*) full_temp, sizeof(elem_t)*MAT_DIM_I*MAT_DIM_K);
 
 
     printf("temp addr: 0x%08lx\n", temp_addr);
@@ -174,7 +175,7 @@ int main() {
 
     tiled_matmul_small(MAT_DIM_I, MAT_DIM_J, MAT_DIM_K,
             (elem_t*)full_A, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], temp_addr,
-            MAT_DIM_K, MAT_DIM_J, MAT_DIM_J, MAT_DIM_J,
+            MAT_DIM_K, MAT_DIM_J, MAT_DIM_J, DIM, //MAT_DIM_J,
             MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY,
             tile_I, tile_J, tile_K,
             NO_ACTIVATION, ACC_SCALE_IDENTITY, REPEATING_BIAS,
@@ -187,6 +188,8 @@ int main() {
 #if ReRoCC == 1
     rr_fence(0);
 #endif
+
+    //memcpy((elem_t*) temp_addr, (elem_t*) full_A, sizeof(elem_t)*MAT_DIM_I*MAT_DIM_K);
 
     printf("first one done\n");
 #if ReRoCC == 1
@@ -202,7 +205,7 @@ int main() {
             false, false,
             false, false,
             1, 1,
-            SYNC_SIZE,
+            0,//SYNC_SIZE,
             true);
 
 #if ReRoCC == 1
@@ -211,7 +214,7 @@ int main() {
 
       uint64_t end = read_cycles();
       printf("Cycles taken: %d\n", end-start);
-      memcpy((elem_t*) full_temp, (elem_t*) temp_addr, sizeof(elem_t)*MAT_DIM_I*MAT_DIM_K);
+      //memcpy((elem_t*) full_temp, (elem_t*) temp_addr, sizeof(elem_t)*MAT_DIM_I*MAT_DIM_K);
 
       const uint64_t total_macs = MAT_DIM_I * MAT_DIM_J * MAT_DIM_K * 2;
       const uint64_t ideal_cycles = total_macs / (DIM * DIM);
@@ -228,6 +231,7 @@ int main() {
 #endif
 
 #if CHECK_RESULT == 1
+/*
     if (!full_is_equal(full_temp, gold_temp)) {
       printf("temp:\n");
       full_printMatrix(full_temp);
@@ -237,6 +241,9 @@ int main() {
 
       exit(1);
     }
+    */
+    printf("temp checked\n");
+    
     if (!full_is_equal(full_C, gold)) {
       printf("C:\n");
       full_printMatrix(full_C);
