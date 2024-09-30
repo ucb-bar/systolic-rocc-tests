@@ -39,6 +39,8 @@ tests = \
 	conv_dw_perf \
 	tiled_matmul_os \
 	tiled_matmul_ws \
+	tiled_matmul_ws_spad \
+	tiled_matmul_ws_spad_rr \
 	tiled_matmul_ws_At \
 	tiled_matmul_ws_Bt \
 	tiled_matmul_ws_full_C \

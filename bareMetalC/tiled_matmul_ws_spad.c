@@ -26,9 +26,9 @@ typedef elem_t ACC_T;
 #define MAT_DIM_K 512
 #define MAT_DIM_J 512
 #else
-#define MAT_DIM_I 64
-#define MAT_DIM_K 64
-#define MAT_DIM_J 64
+#define MAT_DIM_I 4
+#define MAT_DIM_K 4
+#define MAT_DIM_J 4
 #endif
 
 void print_tile(elem_t* in, int tile_dim) {
@@ -96,6 +96,9 @@ int main() {
 
     gemmini_flush(0);
 
+    static elem_t spad_data[MAT_DIM_I][MAT_DIM_J] row_align(1);
+    elem_t *spad_addr = (elem_t*)0x1000000;
+    *spad_addr = spad_data;
     static elem_t full_A[MAT_DIM_I][MAT_DIM_K] row_align(1);
     static elem_t full_B[MAT_DIM_K][MAT_DIM_J] row_align(1);
     static elem_t full_C[MAT_DIM_I][MAT_DIM_J] row_align(1);
@@ -134,7 +137,7 @@ int main() {
     unsigned long start = read_cycles();
 
     tiled_matmul_auto(MAT_DIM_I, MAT_DIM_J, MAT_DIM_K,
-            (elem_t*)full_A, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], (elem_t*)full_C,
+            (elem_t*)full_A, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], NULL,
             MAT_DIM_K, MAT_DIM_J, MAT_DIM_J, MAT_DIM_J,
             MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY,
             NO_ACTIVATION, ACC_SCALE_IDENTITY, 0, false,
@@ -142,6 +145,20 @@ int main() {
             false, !FULL_BIAS_WIDTH,
             0,
             WS);
+
+    const uint32_t acc_addr = 1 << (ADDR_LEN-1);
+    //gemmini_config_ld(DIM*sizeof(acc_t));
+    gemmini_config_ld(DIM * sizeof(acc_t));
+    printf("Mvout from acc to gspad\n");
+    gemmini_mvout(0x8000000, acc_addr);
+    gemmini_config_st(DIM * sizeof(elem_t));
+    printf("Mvin from gspad to spad\n");
+    gemmini_mvin(0x8000000, 0);
+    gemmini_config_ld(DIM * sizeof(elem_t));
+    printf("Mvout from spad to spad\n");
+    gemmini_mvout(0x1000000, 0);
+    printf("Mvout from spad to dram\n");
+    gemmini_mvout(full_C, 0);
 
     unsigned long end = read_cycles();
     printf("Cycles taken: %u\n", end-start);

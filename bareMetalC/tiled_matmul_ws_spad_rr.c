@@ -26,9 +26,9 @@ typedef elem_t ACC_T;
 #define MAT_DIM_K 512
 #define MAT_DIM_J 512
 #else
-#define MAT_DIM_I 64
-#define MAT_DIM_K 64
-#define MAT_DIM_J 64
+#define MAT_DIM_I 16
+#define MAT_DIM_K 16
+#define MAT_DIM_J 16
 #endif
 
 void print_tile(elem_t* in, int tile_dim) {
@@ -94,8 +94,29 @@ int main() {
     printf("MAT_DIM_J: %d\n", MAT_DIM_J);
     printf("MAT_DIM_K: %d\n", MAT_DIM_K);
 
+    int cfgid = 0;
+    int i = 0;
+    bool acquired = rr_acquire_single(cfgid, i);
+
+    if(acquired){
+      printf("gemmini %d acquired to cfgid %d\n", i, cfgid);
+    }
+
+    int cfgid1 = 1;
+    int i1 = 1;
+    acquired = rr_acquire_single(cfgid1, i1);
+
+    if(acquired){
+      printf("gemmini %d acquired to cfgid %d\n", i1, cfgid1);
+    }
+
+    rr_set_opc(XCUSTOM_ACC, cfgid);
+
     gemmini_flush(0);
 
+    static elem_t spad_data[MAT_DIM_I][MAT_DIM_J] row_align(1);
+    elem_t *spad_addr = (elem_t*)0x1000000;
+    *spad_addr = spad_data;
     static elem_t full_A[MAT_DIM_I][MAT_DIM_K] row_align(1);
     static elem_t full_B[MAT_DIM_K][MAT_DIM_J] row_align(1);
     static elem_t full_C[MAT_DIM_I][MAT_DIM_J] row_align(1);
@@ -134,7 +155,7 @@ int main() {
     unsigned long start = read_cycles();
 
     tiled_matmul_auto(MAT_DIM_I, MAT_DIM_J, MAT_DIM_K,
-            (elem_t*)full_A, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], (elem_t*)full_C,
+            (elem_t*)full_A, (elem_t*)full_B, NO_BIAS ? NULL : &full_D[0][0], NULL,
             MAT_DIM_K, MAT_DIM_J, MAT_DIM_J, MAT_DIM_J,
             MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY, MVIN_SCALE_IDENTITY,
             NO_ACTIVATION, ACC_SCALE_IDENTITY, 0, false,
@@ -142,6 +163,19 @@ int main() {
             false, !FULL_BIAS_WIDTH,
             0,
             WS);
+
+    const uint32_t acc_addr = 1 << (ADDR_LEN-1);
+    gemmini_config_ld(DIM * sizeof(elem_t));
+    gemmini_config_st(DIM * sizeof(elem_t));
+    printf("Mvout from acc to spad1 \n");
+    gemmini_mvout(0x1100000, acc_addr);
+    printf("Mvin from spad0 to spad1\n");
+    gemmini_mvin(0x1100000, 0);
+    // gemmini_config_ld(DIM * sizeof(elem_t));
+    // printf("Mvout from spad to spad\n");
+    // gemmini_mvout(0x1000010, 0);
+    printf("Mvout from spad to dram\n");
+    gemmini_mvout(full_C, 0);
 
     unsigned long end = read_cycles();
     printf("Cycles taken: %u\n", end-start);
