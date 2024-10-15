@@ -10,7 +10,6 @@
 #endif
 #include "include/gemmini_testutils.h"
 
-#define CHECK_RESULT 1
 
 #define NO_BIAS 1
 #define FULL_BIAS_WIDTH 1
@@ -104,7 +103,7 @@ int main() {
     static full_t gold_full[MAT_DIM_I][MAT_DIM_J];
     static elem_t gold[MAT_DIM_I][MAT_DIM_J];
 
-#if CHECK_RESULT == 1
+#if 1
 #ifdef FAST
 #define RAND 1
 #else

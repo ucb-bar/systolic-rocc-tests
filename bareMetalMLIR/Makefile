@@ -52,12 +52,12 @@ tiled_matmul_128x128.x: tiled_matmul_128x128.o
 
 # Use special magic to select right C file for MLIR accfg experiments with different sizes
 tiled_matmul_%.acc_dialect.x: tiled_matmul_%.acc_dialect.o ${BUILD_DIR}../bareMetalC/tiled_matmul_ws_%.c
-	riscv64-unknown-elf-gcc  -DPREALLOCATE=1 -DMULTITHREAD=1 -mcmodel=medany -std=gnu99 -O2 -ffast-math -fno-common -fno-builtin-printf -fno-tree-loop-distribute-patterns -march=rv64gc -Wa,-march=rv64gc -lm -lgcc  -DID_STRING= -DPRINT_TILE=0  -nostdlib -nostartfiles -static ${INCLUDES} ${LINKS} -DBAREMETAL=1 ${MLIR_OPTS} $(word 2, $^) $<  -o ${DIRTY_BUILD_DIR}/$@ ${MORE_SRCS}
+	riscv64-unknown-elf-gcc  -DPREALLOCATE=1 -DMULTITHREAD=1 -mcmodel=medany -std=gnu99 -O2 -ffast-math -fno-common -fno-builtin-printf -fno-tree-loop-distribute-patterns -march=rv64gc -Wa,-march=rv64gc -lm -lgcc  -DID_STRING= -DPRINT_TILE=0 -DCHECK_RESULT=0 -nostdlib -nostartfiles -static ${INCLUDES} ${LINKS} -DBAREMETAL=1 ${MLIR_OPTS} $(word 2, $^) $<  -o ${DIRTY_BUILD_DIR}/$@ ${MORE_SRCS}
 
 
 # Use special magic to select right C file for MLIR accfg experiments with different sizes
 tiled_matmul_%.no_opt.acc_dialect.x: tiled_matmul_%.acc_dialect.o ${BUILD_DIR}../bareMetalC/tiled_matmul_ws_%.c
-	riscv64-unknown-elf-gcc  -DPREALLOCATE=1 -DMULTITHREAD=1 -mcmodel=medany -std=gnu99 -O2 -ffast-math -fno-common -fno-builtin-printf -fno-tree-loop-distribute-patterns -march=rv64gc -Wa,-march=rv64gc -lm -lgcc  -DID_STRING= -DPRINT_TILE=0  -nostdlib -nostartfiles -static ${INCLUDES} ${LINKS} -DBAREMETAL=1 ${MLIR_OPTS} $(word 2, $^) $<  -o ${DIRTY_BUILD_DIR}/$@ ${MORE_SRCS}
+	riscv64-unknown-elf-gcc  -DPREALLOCATE=1 -DMULTITHREAD=1 -mcmodel=medany -std=gnu99 -O2 -ffast-math -fno-common -fno-builtin-printf -fno-tree-loop-distribute-patterns -march=rv64gc -Wa,-march=rv64gc -lm -lgcc  -DID_STRING= -DPRINT_TILE=0 -DCHECK_RESULT=0 -nostdlib -nostartfiles -static ${INCLUDES} ${LINKS} -DBAREMETAL=1 ${MLIR_OPTS} $(word 2, $^) $<  -o ${DIRTY_BUILD_DIR}/$@ ${MORE_SRCS}
 
 sim_%: %
 	spike --extension=gemmini ${BUILD_DIR}../bareMetalMLIR/$<
