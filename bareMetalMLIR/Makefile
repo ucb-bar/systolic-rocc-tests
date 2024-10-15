@@ -62,7 +62,8 @@ tiled_matmul_%.no_opt.acc_dialect.x: tiled_matmul_%.acc_dialect.o ${BUILD_DIR}..
 sim_%: %
 	spike --extension=gemmini ${BUILD_DIR}../bareMetalMLIR/$<
 
-RUN_ACCFG = $(addprefix run_, $(BINARY_ACCFG))
+RUN_ACCFG = $(addprefix run_, $(BINARY_ACCFG)) $(addprefix run_, $(BINARY_NO_OPT_ACCFG))
+
 run-accfg: $(RUN_ACCFG)
 $(RUN_ACCFG): run_%: sim_%
 
