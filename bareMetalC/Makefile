@@ -2,7 +2,12 @@ include $(abs_top_srcdir)/Makefrag
 
 tests = \
 		tiled_matmul_os \
-		tiled_matmul_ws
+		tiled_matmul_ws \
+		tiled_matmul_ws_128x128 \
+		tiled_matmul_ws_256x256 \
+		tiled_matmul_ws_32x32 \
+		tiled_matmul_ws_512x512 \
+		tiled_matmul_ws_64x64
 
 # mvin_mvout \
 # mvin_mvout_zeros \
