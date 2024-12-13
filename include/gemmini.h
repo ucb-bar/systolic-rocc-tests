@@ -65,6 +65,8 @@
 #define IGELU 3
 #define SOFTMAX 4
 
+#define NORM_STAT_IDS 4
+
 #ifdef ELEM_T_IS_FLOAT
 elem_t elem_t_bits_to_elem_t(elem_t_bits x) {
     union {
@@ -916,9 +918,9 @@ static void tiled_matmul_outer_eigen(
             // int tile_I = (i + DIM - 1) / DIM;
             // int tile_J = (j + DIM - 1) / DIM;
             // int tile_K = (k + DIM - 1) / DIM;
-            int tile_I = 32;
-            int tile_J = 16;
-            int tile_K = 32;
+            int tile_I = 8;
+            int tile_J = 4;
+            int tile_K = 8;
             tiled_matmul_outer(i, j, k,
                     A, B, NULL, C,
                     transpose_A ? i : k, transpose_B ? k : j, j, j,
@@ -943,9 +945,9 @@ static void tiled_matmul_outer_eigen_bias(
             // int tile_I = (i + DIM - 1) / DIM;
             // int tile_J = (j + DIM - 1) / DIM;
             // int tile_K = (k + DIM - 1) / DIM;
-            int tile_I = 32;
-            int tile_J = 32;
-            int tile_K = 32;
+            int tile_I = 8;
+            int tile_J = 4;
+            int tile_K = 8;
             tiled_matmul_outer(i, j, k,
                     A, B, D, C,
                     transpose_A ? i : k, transpose_B ? k : j, j, j,
