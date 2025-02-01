@@ -388,7 +388,8 @@ int ceil_divide_int(int a, int b){
 // A_transpose is a boolean value that represents whether the matrix A is transposed
 // B_transpose is a boolean value that represents whether the matrix B is transposed
  
- #define config_ld(cols, scale, id) gemmini_extended3_config_ld(cols, scale, false, id)
+// #define config_ld(cols, scale, id) gemmini_extended3_config_ld(cols, scale, false, id)
+#define config_ld(cols, scale, spad_block_stride, id) gemmini_extended4_config_ld(cols, scale, false, spad_block_stride, id)
 // configure mvin instructions
 // cols = number of cols in matrix in DRAM
 // id = id of mvin instruction; id = 0 for mvin, 1 for mvin2, 2 for mvin3
