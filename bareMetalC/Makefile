@@ -10,9 +10,11 @@ tests = \
 	mvin_mvout_acc_stride \
 	mvin_mvout_acc_full \
 	mvin_mvout_acc_full_stride \
+	mvin_mvout_spad \
 	matmul_os \
 	matmul_ws \
 	matmul \
+	matmul_spad \
 	raw_hazard \
 	aligned \
 	padded \
