@@ -67,6 +67,8 @@ else
 # Don't run very long benchmarks for RTL sim
 runs_baremetal = $(addsuffix .run,$(filter-out tiled_matmul_cpu-baremetal tiled_matmul_option-baremetal,$(tests_baremetal)))
 endif
+# Nornaml configs dont have ext spad
+runs_baremetal := $(filter-out matmul_spad-baremetal.run mvin_mvout_spad-baremetal.run,$(runs_baremetal))
 
 ifdef BAREMETAL_ONLY
 	tests_linux =
