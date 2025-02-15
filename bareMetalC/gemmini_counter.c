@@ -10,7 +10,7 @@
 #endif
 #include "include/gemmini_testutils.h"
 
-#define N 8
+#define N 16
 
 #if (N*DIM) > (BANK_NUM*BANK_ROWS)
 #error not enough scratchpad space
